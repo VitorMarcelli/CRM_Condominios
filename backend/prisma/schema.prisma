@@ -1,0 +1,400 @@
+// ============================================
+// CRM para Condomínios — Prisma Schema
+// 20 entities for MVP
+// ============================================
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// 1. Condominium
+// ============================================
+model Condominium {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(180)
+  document  String?  @db.VarChar(30)
+  address   String?  @db.VarChar(300)
+  phone     String?  @db.VarChar(30)
+  email     String?  @db.VarChar(180)
+  status    String   @default("active") @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  blocks            Block[]
+  units             Unit[]
+  residents         Resident[]
+  internalUsers     InternalUser[]
+  conversations     Conversation[]
+  occurrences       Occurrence[]
+  occurrenceCategories OccurrenceCategory[]
+  alerts            Alert[]
+  escalationRules   EscalationRule[]
+  dispatchGroups    DispatchGroup[]
+  businessHours     BusinessHour[]
+  auditLogs         AuditLog[]
+
+  @@map("condominiums")
+}
+
+// ============================================
+// 2. Block
+// ============================================
+model Block {
+  id             String   @id @default(uuid()) @db.Uuid
+  condominiumId  String   @map("condominium_id") @db.Uuid
+  name           String   @db.VarChar(120)
+  code           String?  @db.VarChar(30)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  condominium Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  units       Unit[]
+
+  @@map("blocks")
+}
+
+// ============================================
+// 3. Unit
+// ============================================
+model Unit {
+  id             String   @id @default(uuid()) @db.Uuid
+  condominiumId  String   @map("condominium_id") @db.Uuid
+  blockId        String   @map("block_id") @db.Uuid
+  number         String   @db.VarChar(20)
+  floor          String?  @db.VarChar(20)
+  status         String   @default("active") @db.VarChar(20)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  condominium Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  block       Block       @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  residents   Resident[]
+
+  @@map("units")
+}
+
+// ============================================
+// 4. Resident
+// ============================================
+model Resident {
+  id             String   @id @default(uuid()) @db.Uuid
+  condominiumId  String   @map("condominium_id") @db.Uuid
+  unitId         String?  @map("unit_id") @db.Uuid
+  fullName       String   @map("full_name") @db.VarChar(180)
+  phone          String?  @db.VarChar(30)
+  email          String?  @db.VarChar(180)
+  document       String?  @db.VarChar(30)
+  status         String   @default("active") @db.VarChar(20)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  condominium   Condominium    @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  unit          Unit?          @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  conversations Conversation[]
+  occurrences   Occurrence[]
+
+  @@map("residents")
+}
+
+// ============================================
+// 5. InternalUser
+// ============================================
+model InternalUser {
+  id             String   @id @default(uuid()) @db.Uuid
+  condominiumId  String?  @map("condominium_id") @db.Uuid
+  fullName       String   @map("full_name") @db.VarChar(180)
+  email          String   @unique @db.VarChar(180)
+  phone          String?  @db.VarChar(30)
+  role           String   @db.VarChar(40)
+  passwordHash   String   @map("password_hash")
+  status         String   @default("active") @db.VarChar(20)
+  refreshToken   String?  @map("refresh_token")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  condominium         Condominium?      @relation(fields: [condominiumId], references: [id], onDelete: SetNull)
+  assignedOccurrences Occurrence[]      @relation("AssignedUser")
+  alertRecipients     AlertRecipient[]
+  dispatchGroupMembers DispatchGroupMember[]
+
+  @@map("internal_users")
+}
+
+// ============================================
+// 6. Conversation
+// ============================================
+model Conversation {
+  id                String   @id @default(uuid()) @db.Uuid
+  condominiumId     String   @map("condominium_id") @db.Uuid
+  residentId        String?  @map("resident_id") @db.Uuid
+  channel           String   @db.VarChar(30)
+  externalReference String?  @map("external_reference") @db.VarChar(180)
+  status            String   @default("open") @db.VarChar(30)
+  startedAt         DateTime @default(now()) @map("started_at")
+  lastMessageAt     DateTime? @map("last_message_at")
+
+  condominium Condominium  @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  resident    Resident?    @relation(fields: [residentId], references: [id], onDelete: SetNull)
+  messages    Message[]
+  occurrences Occurrence[]
+
+  @@map("conversations")
+}
+
+// ============================================
+// 7. Message
+// ============================================
+model Message {
+  id              String   @id @default(uuid()) @db.Uuid
+  conversationId  String   @map("conversation_id") @db.Uuid
+  direction       String   @db.VarChar(10) // inbound | outbound
+  senderName      String?  @map("sender_name") @db.VarChar(180)
+  senderPhone     String?  @map("sender_phone") @db.VarChar(30)
+  body            String?
+  mediaUrl        String?  @map("media_url")
+  externalId      String?  @unique @map("external_id") @db.VarChar(180)
+  rawPayload      Json?    @map("raw_payload")
+  sentAt          DateTime @default(now()) @map("sent_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+// ============================================
+// 8. OccurrenceCategory
+// ============================================
+model OccurrenceCategory {
+  id              String   @id @default(uuid()) @db.Uuid
+  condominiumId   String?  @map("condominium_id") @db.Uuid
+  name            String   @db.VarChar(120)
+  severityDefault String?  @map("severity_default") @db.VarChar(20)
+  isEmergency     Boolean  @default(false) @map("is_emergency")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  condominium Condominium?  @relation(fields: [condominiumId], references: [id], onDelete: SetNull)
+  occurrences Occurrence[]
+
+  @@map("occurrence_categories")
+}
+
+// ============================================
+// 9. Occurrence
+// ============================================
+model Occurrence {
+  id               String    @id @default(uuid()) @db.Uuid
+  condominiumId    String    @map("condominium_id") @db.Uuid
+  residentId       String?   @map("resident_id") @db.Uuid
+  conversationId   String?   @map("conversation_id") @db.Uuid
+  categoryId       String?   @map("category_id") @db.Uuid
+  title            String    @db.VarChar(180)
+  description      String?
+  status           String    @default("new") @db.VarChar(30)
+  priority         String    @default("medium") @db.VarChar(20)
+  assignedUserId   String?   @map("assigned_user_id") @db.Uuid
+  openedAt         DateTime  @default(now()) @map("opened_at")
+  closedAt         DateTime? @map("closed_at")
+
+  condominium  Condominium       @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  resident     Resident?         @relation(fields: [residentId], references: [id], onDelete: SetNull)
+  conversation Conversation?     @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  category     OccurrenceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assignedUser InternalUser?     @relation("AssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  timeline     OccurrenceTimeline[]
+  alerts       Alert[]
+  attachments  Attachment[]
+
+  @@map("occurrences")
+}
+
+// ============================================
+// 10. OccurrenceTimeline
+// ============================================
+model OccurrenceTimeline {
+  id           String   @id @default(uuid()) @db.Uuid
+  occurrenceId String   @map("occurrence_id") @db.Uuid
+  action       String   @db.VarChar(60)
+  description  String?
+  actorType    String   @map("actor_type") @db.VarChar(30)
+  actorId      String?  @map("actor_id") @db.Uuid
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  occurrence Occurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+
+  @@map("occurrence_timelines")
+}
+
+// ============================================
+// 11. Attachment
+// ============================================
+model Attachment {
+  id           String   @id @default(uuid()) @db.Uuid
+  occurrenceId String?  @map("occurrence_id") @db.Uuid
+  fileName     String   @map("file_name") @db.VarChar(255)
+  fileUrl      String   @map("file_url")
+  fileType     String?  @map("file_type") @db.VarChar(50)
+  fileSize     Int?     @map("file_size")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
+
+  occurrence Occurrence? @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+// ============================================
+// 12. Alert
+// ============================================
+model Alert {
+  id             String   @id @default(uuid()) @db.Uuid
+  condominiumId  String   @map("condominium_id") @db.Uuid
+  occurrenceId   String   @map("occurrence_id") @db.Uuid
+  triggerType     String   @map("trigger_type") @db.VarChar(40)
+  urgencyLevel   String   @map("urgency_level") @db.VarChar(20)
+  status         String   @default("triggered") @db.VarChar(30)
+  triggeredAt    DateTime @default(now()) @map("triggered_at")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  closedAt       DateTime? @map("closed_at")
+
+  condominium Condominium     @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  occurrence  Occurrence      @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  recipients  AlertRecipient[]
+
+  @@map("alerts")
+}
+
+// ============================================
+// 13. AlertRecipient
+// ============================================
+model AlertRecipient {
+  id        String    @id @default(uuid()) @db.Uuid
+  alertId   String    @map("alert_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  channel   String    @db.VarChar(30)
+  sentAt    DateTime? @map("sent_at")
+  readAt    DateTime? @map("read_at")
+  status    String    @default("pending") @db.VarChar(20)
+
+  alert Alert        @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  user  InternalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("alert_recipients")
+}
+
+// ============================================
+// 14. EscalationRule
+// ============================================
+model EscalationRule {
+  id              String   @id @default(uuid()) @db.Uuid
+  condominiumId   String   @map("condominium_id") @db.Uuid
+  categoryId      String?  @map("category_id") @db.Uuid
+  name            String   @db.VarChar(120)
+  triggerKeywords Json?    @map("trigger_keywords")
+  activeHours     Json?    @map("active_hours")
+  urgencyLevel    String   @map("urgency_level") @db.VarChar(20)
+  dispatchGroupId String?  @map("dispatch_group_id") @db.Uuid
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  condominium   Condominium   @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  dispatchGroup DispatchGroup? @relation(fields: [dispatchGroupId], references: [id], onDelete: SetNull)
+
+  @@map("escalation_rules")
+}
+
+// ============================================
+// 15. DispatchGroup
+// ============================================
+model DispatchGroup {
+  id             String   @id @default(uuid()) @db.Uuid
+  condominiumId  String   @map("condominium_id") @db.Uuid
+  name           String   @db.VarChar(120)
+  description    String?
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  condominium     Condominium          @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  members         DispatchGroupMember[]
+  escalationRules EscalationRule[]
+
+  @@map("dispatch_groups")
+}
+
+// ============================================
+// 16. DispatchGroupMember
+// ============================================
+model DispatchGroupMember {
+  id              String   @id @default(uuid()) @db.Uuid
+  dispatchGroupId String   @map("dispatch_group_id") @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  priority        Int      @default(0)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  dispatchGroup DispatchGroup @relation(fields: [dispatchGroupId], references: [id], onDelete: Cascade)
+  user          InternalUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([dispatchGroupId, userId])
+  @@map("dispatch_group_members")
+}
+
+// ============================================
+// 17. BusinessHour
+// ============================================
+model BusinessHour {
+  id             String   @id @default(uuid()) @db.Uuid
+  condominiumId  String   @map("condominium_id") @db.Uuid
+  weekday        Int      // 0=Sunday, 6=Saturday
+  startTime      String   @map("start_time") @db.VarChar(5) // HH:mm
+  endTime        String   @map("end_time") @db.VarChar(5)   // HH:mm
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  condominium Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+
+  @@unique([condominiumId, weekday])
+  @@map("business_hours")
+}
+
+// ============================================
+// 18. ContactChannel
+// ============================================
+model ContactChannel {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String   @db.VarChar(60)
+  type       String   @db.VarChar(30) // whatsapp, phone, email
+  identifier String   @db.VarChar(180)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("contact_channels")
+}
+
+// ============================================
+// 19. AuditLog
+// ============================================
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  condominiumId  String?  @map("condominium_id") @db.Uuid
+  entityType     String   @map("entity_type") @db.VarChar(60)
+  entityId       String?  @map("entity_id") @db.Uuid
+  action         String   @db.VarChar(60)
+  actorType      String   @map("actor_type") @db.VarChar(30)
+  actorId        String?  @map("actor_id") @db.Uuid
+  metadata       Json?
+  ipAddress      String?  @map("ip_address") @db.VarChar(45)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  condominium Condominium? @relation(fields: [condominiumId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorType, actorId])
+  @@index([condominiumId])
+  @@map("audit_logs")
+}
