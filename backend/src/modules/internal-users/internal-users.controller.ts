@@ -5,16 +5,30 @@ import { InternalUsersService } from './internal-users.service';
 import { Roles, CurrentUser } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { Role } from '../../common/enums';
-import { IsString, IsNotEmpty, IsOptional, IsEmail, IsEnum, MinLength, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEmail, IsEnum, MinLength, IsUUID, IsObject } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 class CreateInternalUserDto {
   @ApiPropertyOptional() @IsUUID() @IsOptional() condominiumId?: string;
+  @ApiPropertyOptional() @IsUUID() @IsOptional() customRoleId?: string;
   @ApiProperty({ example: 'Maria Santos' }) @IsString() @IsNotEmpty() fullName: string;
   @ApiProperty({ example: 'maria@email.com' }) @IsEmail() email: string;
   @ApiPropertyOptional() @IsString() @IsOptional() phone?: string;
   @ApiProperty({ enum: Role }) @IsEnum(Role) role: string;
   @ApiProperty() @IsString() @MinLength(8) password: string;
+  @ApiPropertyOptional({ description: 'Granular permissions object' })
+  @IsObject() @IsOptional() permissions?: Record<string, boolean>;
+}
+
+class UpdateInternalUserDto {
+  @ApiPropertyOptional() @IsUUID() @IsOptional() condominiumId?: string;
+  @ApiPropertyOptional() @IsUUID() @IsOptional() customRoleId?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() fullName?: string;
+  @ApiPropertyOptional() @IsEmail() @IsOptional() email?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() phone?: string;
+  @ApiPropertyOptional({ enum: Role }) @IsEnum(Role) @IsOptional() role?: string;
+  @ApiPropertyOptional({ description: 'Granular permissions object' })
+  @IsObject() @IsOptional() permissions?: Record<string, boolean>;
 }
 
 class UpdateStatusDto {
@@ -53,9 +67,8 @@ export class InternalUsersController {
   @Put(':id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: 'Update internal user' })
-  update(@Param('id') id: string, @Body() dto: Partial<CreateInternalUserDto>, @CurrentUser('sub') userId: string) {
-    const { password, ...data } = dto as any;
-    return this.service.update(id, data, userId);
+  update(@Param('id') id: string, @Body() dto: UpdateInternalUserDto, @CurrentUser('sub') userId: string) {
+    return this.service.update(id, dto, userId);
   }
 
   @Patch(':id/status')

@@ -7,6 +7,14 @@ export interface User {
   fullName: string;
   role: string;
   condominiumId: string | null;
+  customRoleId?: string | null;
+  permissions?: Record<string, boolean>;
+  customRole?: {
+    id: string;
+    name: string;
+    color: string;
+    permissions: Record<string, Record<string, boolean>>;
+  } | null;
 }
 
 interface AuthState {

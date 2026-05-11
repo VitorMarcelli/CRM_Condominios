@@ -14,90 +14,135 @@ import {
   Bell,
   Siren,
   Users2,
-  ShieldCheck
+  ShieldCheck,
+  Briefcase,
+  Crown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Separator } from '@/components/ui/separator';
 
 const navItems = [
-  { name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Ocorrências', href: '/dashboard/occurrences', icon: AlertTriangle },
-  { name: 'Atendimento (WhatsApp)', href: '/dashboard/conversations', icon: MessageSquare },
-  { name: 'Alertas', href: '/dashboard/alerts', icon: Bell },
-  { name: 'Moradores', href: '/dashboard/residents', icon: Users },
-  { name: 'Grupos de Acionamento', href: '/dashboard/dispatch-groups', icon: Users2 },
-  { name: 'Regras de Escalonamento', href: '/dashboard/escalation-rules', icon: Siren },
-  { name: 'Auditoria', href: '/dashboard/audit-logs', icon: ShieldCheck, adminOnly: true },
-  { name: 'Condomínios', href: '/dashboard/condominiums', icon: Building, adminOnly: true },
+  { name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard, permKey: 'dashboard' },
+  { name: 'Ocorrências', href: '/dashboard/occurrences', icon: AlertTriangle, permKey: 'occurrences' },
+  { name: 'Atendimento', href: '/dashboard/conversations', icon: MessageSquare, permKey: 'conversations' },
+  { name: 'Alertas', href: '/dashboard/alerts', icon: Bell, permKey: 'alerts' },
+  { name: 'Moradores', href: '/dashboard/residents', icon: Users, permKey: 'residents' },
+  { name: 'Condomínios', href: '/dashboard/condominiums', icon: Building, adminOnly: true, permKey: 'condominiums' },
+  { name: 'Equipe', href: '/dashboard/staff', icon: Briefcase, adminOnly: true, permKey: 'staff' },
+  { name: 'Cargos', href: '/dashboard/roles', icon: Crown, adminOnly: true, permKey: 'staff' },
+  { name: 'Grupos', href: '/dashboard/dispatch-groups', icon: Users2, permKey: 'dispatch_groups' },
+  { name: 'Regras', href: '/dashboard/escalation-rules', icon: Siren, permKey: 'escalation_rules' },
+  { name: 'Auditoria', href: '/dashboard/audit-logs', icon: ShieldCheck, adminOnly: true, permKey: 'audit_logs' },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
 
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const customRolePerms = user?.customRole?.permissions as Record<string, Record<string, boolean>> | undefined;
+  const legacyPerms = (user?.permissions ?? {}) as Record<string, boolean>;
+
   const filteredNavItems = navItems.filter(item => {
-    if (item.adminOnly && user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN') {
-      return false;
+    if (item.adminOnly && !isAdmin) return false;
+    if (isAdmin) return true;
+    if (item.permKey === 'dashboard') return true;
+    // Check customRole permissions first (granular: module.view)
+    if (customRolePerms && Object.keys(customRolePerms).length > 0) {
+      const modPerms = customRolePerms[item.permKey];
+      return modPerms?.view === true;
     }
-    return true;
+    // Fallback to legacy flat permissions
+    if (Object.keys(legacyPerms).length === 0) return true;
+    return legacyPerms[item.permKey] !== false;
   });
 
   return (
-    <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col h-screen sticky top-0 shrink-0">
-      {/* Logo */}
-      <div className="h-16 flex items-center px-6 bg-slate-950">
-        <Building2 className="w-6 h-6 text-blue-500 mr-3" />
-        <span className="font-bold text-white tracking-tight">Condominium CRM</span>
-      </div>
+    <>
+      {/* Spacer to maintain layout integrity while sidebar floats */}
+      <div className="w-20 shrink-0 hidden md:block bg-transparent" />
 
-      {/* Nav */}
-      <nav className="flex-1 py-6 px-4 space-y-1 overflow-y-auto">
-        {filteredNavItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link key={item.name} href={item.href}>
-              <span className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-                isActive 
-                  ? "bg-blue-600 text-white shadow-sm" 
-                  : "hover:bg-slate-800 hover:text-white"
-              )}>
-                <item.icon className={cn("w-5 h-5", isActive ? "text-white" : "text-slate-400")} />
-                {item.name}
-              </span>
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* User Profile */}
-      <div className="p-4 bg-slate-950">
-        <div className="flex items-center gap-3 mb-4">
-          <Avatar className="h-10 w-10 border border-slate-700">
-            <AvatarFallback className="bg-slate-800 text-slate-300 font-medium">
-              {user?.fullName.charAt(0).toUpperCase() || 'U'}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">
-              {user?.fullName}
-            </p>
-            <p className="text-xs text-slate-500 truncate">
-              {user?.role.replace('_', ' ')}
-            </p>
+      {/* Floating Sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-50 flex flex-col bg-[#111111] dark:bg-[#0a0a0a] transition-[width] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] w-20 hover:w-72 group overflow-hidden border-r border-white/5 shadow-2xl">
+        
+        {/* Logo Section */}
+        <div className="h-24 flex items-center px-5 shrink-0">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-[14px] flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20 relative overflow-hidden group-hover:scale-105 transition-transform duration-300">
+            <div className="absolute inset-0 bg-white/20 dark:bg-white/10 mix-blend-overlay" />
+            <Building2 className="w-5 h-5 text-white" strokeWidth={2.5} />
+          </div>
+          <div className="ml-4 flex flex-col opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+            <span className="font-black text-white tracking-tight text-lg leading-none">
+              Condominium
+            </span>
+            <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mt-1">
+              Workspace
+            </span>
           </div>
         </div>
-        <Button 
-          variant="ghost" 
-          className="w-full justify-start text-slate-400 hover:text-white hover:bg-slate-800"
-          onClick={logout}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Sair da conta
-        </Button>
-      </div>
-    </aside>
+
+        {/* Navigation */}
+        <nav className="flex-1 py-4 px-3 space-y-2 overflow-y-auto no-scrollbar">
+          {filteredNavItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link key={item.name} href={item.href} className="block outline-none">
+                <div className={cn(
+                  "flex items-center px-3 py-3.5 rounded-2xl transition-all duration-300 relative group/item",
+                  isActive 
+                    ? "bg-white text-[#111111] shadow-[0_4px_20px_-4px_rgba(255,255,255,0.4)]"
+                    : "text-slate-400 hover:bg-white/10 hover:text-white"
+                )}>
+                  <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                    <item.icon 
+                      className={cn(
+                        "w-[22px] h-[22px] shrink-0 transition-transform duration-300 group-hover/item:scale-110", 
+                        isActive ? "text-[#111111]" : ""
+                      )} 
+                      strokeWidth={isActive ? 2.5 : 2} 
+                    />
+                  </div>
+                  <span className="ml-3 font-bold text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap tracking-wide">
+                    {item.name}
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* User Profile / Logout */}
+        <div className="p-4 shrink-0 mt-auto border-t border-white/5 bg-[#111111] dark:bg-[#0a0a0a]">
+          <div className="flex items-center px-2 py-2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+            <Avatar className="h-10 w-10 border-2 border-slate-800 shrink-0">
+              <AvatarFallback className="bg-gradient-to-br from-slate-800 to-slate-900 text-slate-300 font-bold">
+                {user?.fullName?.charAt(0).toUpperCase() || 'U'}
+              </AvatarFallback>
+            </Avatar>
+            <div className="ml-3 flex-1 min-w-0">
+              <p className="text-sm font-bold text-white truncate">
+                {user?.fullName || 'Usuário'}
+              </p>
+              <p className="text-xs font-medium text-slate-500 truncate">
+                {user?.role?.replace('_', ' ') || 'Admin'}
+              </p>
+            </div>
+          </div>
+          
+          <button 
+            onClick={logout} 
+            className="w-full flex items-center px-3 py-3 rounded-2xl text-slate-400 hover:bg-red-500/10 hover:text-red-500 transition-all duration-300 group/btn"
+          >
+            <div className="w-8 h-8 flex items-center justify-center shrink-0">
+              <LogOut className="w-[20px] h-[20px]" strokeWidth={2.5} />
+            </div>
+            <span className="ml-3 font-bold text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap tracking-wide">
+              Sair da conta
+            </span>
+          </button>
+        </div>
+
+      </aside>
+    </>
   );
 }

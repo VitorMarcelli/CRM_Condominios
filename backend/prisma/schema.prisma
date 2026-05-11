@@ -39,6 +39,7 @@ model Condominium {
   dispatchGroups    DispatchGroup[]
   businessHours     BusinessHour[]
   auditLogs         AuditLog[]
+  chatMemories      ChatMemory[]
 
   @@map("condominiums")
 }
@@ -97,20 +98,41 @@ model Resident {
   unit          Unit?          @relation(fields: [unitId], references: [id], onDelete: SetNull)
   conversations Conversation[]
   occurrences   Occurrence[]
+  chatMemories  ChatMemory[]
 
   @@map("residents")
 }
 
 // ============================================
-// 5. InternalUser
+// 5. CustomRole
+// ============================================
+model CustomRole {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(120)
+  description String?  @db.VarChar(300)
+  color       String   @default("#3b82f6") @db.VarChar(20)
+  permissions Json     @default("{}")
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users InternalUser[]
+
+  @@map("custom_roles")
+}
+
+// ============================================
+// 6. InternalUser
 // ============================================
 model InternalUser {
   id             String   @id @default(uuid()) @db.Uuid
   condominiumId  String?  @map("condominium_id") @db.Uuid
+  customRoleId   String?  @map("custom_role_id") @db.Uuid
   fullName       String   @map("full_name") @db.VarChar(180)
   email          String   @unique @db.VarChar(180)
   phone          String?  @db.VarChar(30)
   role           String   @db.VarChar(40)
+  permissions    Json?    @default("{}")
   passwordHash   String   @map("password_hash")
   status         String   @default("active") @db.VarChar(20)
   refreshToken   String?  @map("refresh_token")
@@ -118,6 +140,7 @@ model InternalUser {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   condominium         Condominium?      @relation(fields: [condominiumId], references: [id], onDelete: SetNull)
+  customRole          CustomRole?       @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   assignedOccurrences Occurrence[]      @relation("AssignedUser")
   alertRecipients     AlertRecipient[]
   dispatchGroupMembers DispatchGroupMember[]
@@ -222,6 +245,7 @@ model OccurrenceTimeline {
   description  String?
   actorType    String   @map("actor_type") @db.VarChar(30)
   actorId      String?  @map("actor_id") @db.Uuid
+  isInternal   Boolean  @default(false) @map("is_internal")
   metadata     Json?
   createdAt    DateTime @default(now()) @map("created_at")
 
@@ -397,4 +421,25 @@ model AuditLog {
   @@index([actorType, actorId])
   @@index([condominiumId])
   @@map("audit_logs")
+}
+
+// ============================================
+// 20. ChatMemory
+// ============================================
+model ChatMemory {
+  id              String    @id @default(uuid()) @db.Uuid
+  condominiumId   String    @map("condominium_id") @db.Uuid
+  residentId      String?   @map("resident_id") @db.Uuid
+  phone           String    @db.VarChar(30)
+  summary         String?
+  preferences     Json?
+  lastInteraction DateTime? @map("last_interaction")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  condominium Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  resident    Resident?   @relation(fields: [residentId], references: [id], onDelete: SetNull)
+
+  @@unique([condominiumId, phone])
+  @@map("chat_memories")
 }

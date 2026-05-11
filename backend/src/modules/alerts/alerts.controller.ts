@@ -2,17 +2,18 @@ import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/co
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { AlertsService } from './alerts.service';
-import { RolesGuard } from '../../common/guards';
-import { CurrentUser } from '../../common/decorators';
+import { PermissionsGuard } from '../../common/guards';
+import { CurrentUser, RequirePermission } from '../../common/decorators';
 
 @ApiTags('Alerts')
 @Controller('alerts')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 @ApiBearerAuth()
 export class AlertsController {
   constructor(private service: AlertsService) {}
 
   @Get()
+  @RequirePermission('alerts', 'view')
   @ApiOperation({ summary: 'List alerts' })
   findAll(
     @CurrentUser() user: any,
@@ -41,17 +42,19 @@ export class AlertsController {
     @Body() dto: { condominiumId: string; occurrenceId: string; triggerType: string; urgencyLevel: string },
     @CurrentUser() user: any,
   ) {
-    const condominiumId = user.role !== 'super_admin' ? user.condominiumId : dto.condominiumId;
+    const condominiumId = user.role !== 'SUPER_ADMIN' ? user.condominiumId : dto.condominiumId;
     return this.service.trigger({ ...dto, condominiumId }, user.sub);
   }
 
   @Post(':id/acknowledge')
+  @RequirePermission('alerts', 'acknowledge')
   @ApiOperation({ summary: 'Acknowledge alert' })
   acknowledge(@Param('id') id: string, @CurrentUser('sub') userId: string) {
     return this.service.acknowledge(id, userId);
   }
 
   @Post(':id/close')
+  @RequirePermission('alerts', 'dismiss')
   @ApiOperation({ summary: 'Close alert' })
   close(@Param('id') id: string, @CurrentUser('sub') userId: string) {
     return this.service.close(id, userId);

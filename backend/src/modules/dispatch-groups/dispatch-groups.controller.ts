@@ -16,7 +16,7 @@ export class DispatchGroupsController {
   @Get()
   @ApiOperation({ summary: 'List dispatch groups' })
   findAll(@CurrentUser() user: any, @Query('condominiumId') queryCondominiumId?: string) {
-    const condominiumId = user.role !== 'super_admin' ? user.condominiumId : queryCondominiumId;
+    const condominiumId = user.role !== 'SUPER_ADMIN' ? user.condominiumId : queryCondominiumId;
     return this.service.findAll(condominiumId);
   }
 
@@ -30,7 +30,7 @@ export class DispatchGroupsController {
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: 'Create dispatch group' })
   create(@Body() dto: { condominiumId: string; name: string; description?: string }, @CurrentUser() user: any) {
-    const condominiumId = user.role !== 'super_admin' ? user.condominiumId : dto.condominiumId;
+    const condominiumId = user.role !== 'SUPER_ADMIN' ? user.condominiumId : dto.condominiumId;
     return this.service.create({ ...dto, condominiumId });
   }
 

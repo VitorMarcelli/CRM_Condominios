@@ -19,10 +19,13 @@ async function bootstrap() {
     }),
   );
 
-  // CORS
+  // CORS — explicit config so preflight (OPTIONS) requests pass
   const corsOrigins = configService.get<string>('CORS_ORIGINS', 'http://localhost:3000');
   app.enableCors({
-    origin: corsOrigins.split(','),
+    origin: corsOrigins.split(',').map((o) => o.trim()),
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    exposedHeaders: ['Authorization'],
     credentials: true,
   });
 

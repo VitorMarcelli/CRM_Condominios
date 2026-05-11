@@ -31,44 +31,37 @@ services:
       timeout: 5s
       retries: 5
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: crm_backend
+  evolution-api:
+    image: atendai/evolution-api:latest
+    container_name: crm_evolution_api
     restart: unless-stopped
+    depends_on:
+      - redis
     ports:
-      - '3001:3001'
+      - '8080:8080'
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-crm_user}:${POSTGRES_PASSWORD:-crm_password}@postgres:5432/${POSTGRES_DB:-crm_condominios}?schema=public
-      - APP_PORT=3001
-      - APP_ENV=${APP_ENV:-production}
-      - JWT_SECRET=${JWT_SECRET:-secret_dev_key_only}
-      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-15m}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-refresh_secret_dev_key_only}
-      - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN:-7d}
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
-        NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-production}
-    container_name: crm_frontend
-    restart: unless-stopped
-    ports:
-      - '3000:3000'
-    depends_on:
-      - backend
+      - SERVER_URL=http://localhost:8080
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-crm-evolution-key-dev}
+      - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true
+      - DATABASE_ENABLED=false
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://${POSTGRES_USER:-crm_user}:${POSTGRES_PASSWORD:-crm_password}@postgres:5432/${POSTGRES_DB:-crm_condominios}?schema=evolution
+      - DATABASE_SAVE_DATA_INSTANCE=true
+      - DATABASE_SAVE_DATA_NEW_MESSAGE=true
+      - DATABASE_SAVE_DATA_CONTACTS=true
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis:6379
+      - CACHE_REDIS_PREFIX_KEY=evolution
+      - CACHE_LOCAL_ENABLED=false
+      - LOG_LEVEL=WARN
+      - DEL_INSTANCE=false
+      - WEBHOOK_GLOBAL_ENABLED=false
+      - WEBHOOK_GLOBAL_URL=
+      - WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=false
+    volumes:
+      - evolution_data:/evolution/instances
 
 volumes:
   postgres_data:
   redis_data:
+  evolution_data:

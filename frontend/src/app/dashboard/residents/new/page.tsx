@@ -4,13 +4,12 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { api } from '@/lib/api';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 
 export default function NewResidentPage() {
@@ -34,26 +33,6 @@ export default function NewResidentPage() {
       api.get('/condominiums').then(res => setCondominiums(res.data.data || [])).catch(console.error);
     }
   }, [user]);
-
-  useEffect(() => {
-    const fetchUnits = async () => {
-      if (!formData.condominiumId) {
-        setUnits([]);
-        return;
-      }
-      try {
-        // In a real app we might fetch only units for this condominium
-        // For MVP we can just fetch all units and filter, or backend could have /condominiums/:id/units
-        // Assuming backend handles filtering via query param if we had it.
-        const res = await api.get(`/condominiums/${formData.condominiumId}`);
-        // Let's assume we don't have unit list endpoint yet, so we will skip unit dropdown population for MVP
-        // or we can fetch blocks/units from backend if implemented.
-      } catch (error) {
-        console.error('Error fetching units', error);
-      }
-    };
-    fetchUnits();
-  }, [formData.condominiumId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -89,111 +68,117 @@ export default function NewResidentPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" asChild>
-          <Link href="/dashboard/residents">
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Novo Morador</h1>
-          <p className="text-slate-500 mt-1">Cadastre um novo morador no sistema.</p>
+    <div className="space-y-8 pb-12 w-full max-w-[800px] mx-auto font-sans">
+      <div className="flex items-center gap-5">
+        <Link href="/dashboard/residents" className="w-12 h-12 rounded-2xl bg-white dark:bg-[#151515] border border-slate-100 dark:border-white/5 shadow-sm flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
+            <UserPlus className="w-6 h-6 text-blue-600 dark:text-blue-500" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Novo Morador</h1>
+            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 mt-1">Insira os dados cadastrais do residente.</p>
+          </div>
         </div>
       </div>
 
-      <Card className="border-0 shadow-sm">
-        <CardContent className="pt-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="condominiumId">Condomínio *</Label>
-                  <Select 
-                    value={formData.condominiumId} 
-                    onValueChange={(val) => handleSelectChange('condominiumId', val)}
-                  >
-                    <SelectTrigger className="bg-slate-50">
-                      <SelectValue placeholder="Selecione um condomínio" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {condominiums.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="fullName">Nome Completo *</Label>
-                <Input
-                  id="fullName"
-                  name="fullName"
-                  placeholder="Ex: João da Silva"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  required
-                  className="bg-slate-50"
-                />
+      <div className="bg-white dark:bg-[#151515] rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-white/5 overflow-hidden p-6 md:p-10">
+        <form onSubmit={handleSubmit} className="space-y-8">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+              <div className="space-y-3 md:col-span-2">
+                <Label htmlFor="condominiumId" className="text-xs font-bold text-slate-400 uppercase tracking-wider">Condomínio *</Label>
+                <Select 
+                  value={formData.condominiumId} 
+                  onValueChange={(val) => handleSelectChange('condominiumId', val)}
+                >
+                  <SelectTrigger className="h-14 bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/10 rounded-xl text-base font-semibold">
+                    <SelectValue placeholder="Selecione o condomínio vinculado" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-slate-200 dark:border-white/10 shadow-xl">
+                    {condominiums.map(c => (
+                      <SelectItem key={c.id} value={c.id} className="font-semibold text-slate-700 dark:text-slate-300 py-3">{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+            )}
 
-              <div className="space-y-2">
-                <Label htmlFor="document">CPF / Documento</Label>
-                <Input
-                  id="document"
-                  name="document"
-                  placeholder="000.000.000-00"
-                  value={formData.document}
-                  onChange={handleChange}
-                  className="bg-slate-50"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Celular (WhatsApp)</Label>
-                <Input
-                  id="phone"
-                  name="phone"
-                  placeholder="(00) 90000-0000"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className="bg-slate-50"
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="email">E-mail</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="morador@email.com"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="bg-slate-50"
-                />
-              </div>
+            <div className="space-y-3 md:col-span-2">
+              <Label htmlFor="fullName" className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nome Completo *</Label>
+              <Input
+                id="fullName"
+                name="fullName"
+                placeholder="Ex: João da Silva"
+                value={formData.fullName}
+                onChange={handleChange}
+                required
+                className="h-14 bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/10 rounded-xl text-base font-semibold placeholder:font-medium placeholder:text-slate-400 focus-visible:ring-blue-500"
+              />
             </div>
 
-            <div className="flex justify-end pt-4 border-t border-slate-100">
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="mr-3" 
-                onClick={() => router.push('/dashboard/residents')}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Cadastrar Morador
-              </Button>
+            <div className="space-y-3">
+              <Label htmlFor="document" className="text-xs font-bold text-slate-400 uppercase tracking-wider">CPF / Documento</Label>
+              <Input
+                id="document"
+                name="document"
+                placeholder="000.000.000-00"
+                value={formData.document}
+                onChange={handleChange}
+                className="h-14 bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/10 rounded-xl text-base font-semibold placeholder:font-medium placeholder:text-slate-400 focus-visible:ring-blue-500"
+              />
             </div>
-          </form>
-        </CardContent>
-      </Card>
+
+            <div className="space-y-3">
+              <Label htmlFor="phone" className="text-xs font-bold text-slate-400 uppercase tracking-wider">Celular (WhatsApp)</Label>
+              <Input
+                id="phone"
+                name="phone"
+                placeholder="(00) 90000-0000"
+                value={formData.phone}
+                onChange={handleChange}
+                className="h-14 bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/10 rounded-xl text-base font-semibold placeholder:font-medium placeholder:text-slate-400 focus-visible:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-3 md:col-span-2">
+              <Label htmlFor="email" className="text-xs font-bold text-slate-400 uppercase tracking-wider">E-mail</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="morador@email.com"
+                value={formData.email}
+                onChange={handleChange}
+                className="h-14 bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/10 rounded-xl text-base font-semibold placeholder:font-medium placeholder:text-slate-400 focus-visible:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-6 mt-8 border-t border-slate-100 dark:border-white/5">
+            <Button 
+              type="button" 
+              variant="ghost" 
+              className="w-full sm:w-auto h-12 rounded-xl font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white" 
+              onClick={() => router.push('/dashboard/residents')}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              type="submit" 
+              className="w-full sm:w-auto h-12 px-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-500/20 hover:scale-105 transition-transform" 
+              disabled={isSubmitting}
+            >
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Finalizar Cadastro
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

@@ -14,16 +14,16 @@ export class EscalationRulesController {
   constructor(private service: EscalationRulesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List escalation rules' })
+  @ApiOperation({ summary: 'List rules' })
   findAll(@CurrentUser() user: any, @Query('condominiumId') queryCondominiumId?: string) {
-    const condominiumId = user.role !== 'super_admin' ? user.condominiumId : queryCondominiumId;
+    const condominiumId = user.role !== 'SUPER_ADMIN' ? user.condominiumId : queryCondominiumId;
     return this.service.findAll(condominiumId);
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create escalation rule' })
+  @ApiOperation({ summary: 'Create rule' })
   create(@Body() dto: any, @CurrentUser() user: any) {
-    const condominiumId = user.role !== 'super_admin' ? user.condominiumId : dto.condominiumId;
+    const condominiumId = user.role !== 'SUPER_ADMIN' ? user.condominiumId : dto.condominiumId;
     return this.service.create({ ...dto, condominiumId });
   }
 

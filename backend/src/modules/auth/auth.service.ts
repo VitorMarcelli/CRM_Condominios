@@ -94,10 +94,13 @@ export class AuthService {
         fullName: true,
         phone: true,
         role: true,
+        customRoleId: true,
+        permissions: true,
         condominiumId: true,
         status: true,
         createdAt: true,
         condominium: { select: { id: true, name: true } },
+        customRole: { select: { id: true, name: true, color: true, permissions: true } },
       },
     });
 

@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConversationsService } from '../conversations/conversations.service';
 import { ResidentsService } from '../residents/residents.service';
-import { AfterHoursTriageService } from './after-hours-triage.service';
+import { AiAgentService } from '../ai-agent/ai-agent.service';
 import { AuditService } from '../audit/audit.service';
-import { WhatsAppPayloadParser } from './services/whatsapp-parser.service';
+import { EvolutionApiProvider } from './providers/evolution-api.provider';
 
 @Injectable()
 export class WebhooksService {
@@ -12,110 +12,115 @@ export class WebhooksService {
   constructor(
     private conversations: ConversationsService,
     private residents: ResidentsService,
-    private triage: AfterHoursTriageService,
+    private aiAgent: AiAgentService,
     private audit: AuditService,
-    private parser: WhatsAppPayloadParser,
+    private evolution: EvolutionApiProvider,
   ) {}
 
-  async handleWhatsAppWebhook(payload: any, headerCondominiumId?: string) {
-    this.logger.log('WhatsApp webhook received');
+  async handleEvolutionWebhook(payload: any, headerCondominiumId?: string) {
+    this.logger.log(`Webhook received: event=${payload?.event}`);
 
-    // 1. Parse incoming payload
-    let messages;
-    try {
-      messages = this.parser.parseMockPayload(payload);
-    } catch (err) {
-      this.logger.warn('Could not parse WhatsApp payload');
-      return { status: 'ignored', reason: 'unparseable_payload' };
+    // 1. Parse incoming payload from Evolution API
+    const parsed = this.evolution.parseIncomingWebhook(payload);
+    if (!parsed) {
+      this.logger.log('Webhook ignored (not a user message or unparseable)');
+      return { status: 'ignored', reason: 'not_a_user_message' };
     }
 
-    const results: any[] = [];
+    const { phone, name, body, messageId, messageType } = parsed;
 
-    for (const message of messages) {
-      // 2. Try to identify resident by phone
-      const resident = await this.residents.findByPhone(message.senderPhone);
-      
-      // Condominium resolution: 
-      // First try to use the resident's condominium. If no resident is found, use the header (webhook configuration scope).
-      const condominiumId = resident?.condominiumId || headerCondominiumId;
-
-      if (!condominiumId) {
-        this.logger.warn(`Unknown sender: ${message.senderPhone} and no x-condominium-id header provided.`);
-        results.push({ status: 'ignored', reason: 'unknown_condominium', phone: message.senderPhone });
-        continue;
+    // 2. Skip non-text messages for now (images, audio, etc.)
+    if (messageType !== 'text' || !body || body.trim().length === 0) {
+      this.logger.log(`Non-text or empty message from ${phone}, type: ${messageType}`);
+      // Send a polite message asking for text
+      if (messageType !== 'text' && messageType !== 'unknown') {
+        await this.evolution.sendText(
+          phone,
+          'Recebi seu arquivo! 📎 No momento, consigo processar apenas mensagens de texto. Por favor, descreva sua solicitação por escrito.',
+        );
       }
+      return { status: 'ignored', reason: 'non_text_message' };
+    }
 
-      // Check idempotency
-      const messageId = message.externalId || message.id || String(Date.now()); // Ensure unique ID per provider payload
-      if (message.externalId) {
-        const existing = await this.conversations.findMessageByExternalId(message.externalId);
-        if (existing) {
-          this.logger.log(`Duplicate message ${message.externalId} skipped.`);
-          results.push({ status: 'ignored', reason: 'duplicate_message', externalId: message.externalId });
-          continue;
-        }
-      }
+    // 3. Identify resident by phone
+    const resident = await this.residents.findByPhone(phone);
+    const condominiumId = resident?.condominiumId || headerCondominiumId;
 
-      // 3. Create or find conversation
-      const conversation = await this.conversations.createOrFindConversation(
-        condominiumId,
-        message.senderPhone,
-        resident?.id,
+    if (!condominiumId) {
+      this.logger.warn(`Unknown phone ${phone} and no condominium context`);
+      await this.evolution.sendText(
+        phone,
+        'Olá! Não consegui identificar seu número em nosso sistema. Por favor, entre em contato com a administração do seu condomínio para realizar o cadastro.',
       );
-
-      // 4. Register inbound message
-      await this.conversations.addMessage(conversation.id, {
-        direction: 'inbound',
-        senderName: message.senderName,
-        senderPhone: message.senderPhone,
-        body: message.body,
-        mediaUrl: message.mediaUrl,
-        externalId: message.externalId,
-        rawPayload: payload,
-      });
-
-      // 5. Run triage (checks business hours, urgency, etc.)
-      const triageResult = await this.triage.processMessage({
-        condominiumId,
-        conversationId: conversation.id,
-        residentId: resident?.id,
-        messageBody: message.body || '',
-        senderPhone: message.senderPhone,
-      });
-
-      // 6. If triage triggers an auto-response, save it as a system outbound message
-      if (triageResult.autoResponse) {
-        await this.conversations.addMessage(conversation.id, {
-          direction: 'system',
-          body: triageResult.autoResponse,
-          rawPayload: { generatedBy: 'AfterHoursTriageService' },
-        });
-      }
-
-      // 7. Log audit
-      await this.audit.log({
-        condominiumId,
-        entityType: 'Conversation',
-        entityId: conversation.id,
-        action: 'WEBHOOK_RECEIVED',
-        actorType: 'system',
-        metadata: {
-          phone: message.senderPhone,
-          triageResult: triageResult.action,
-          isAfterHours: triageResult.isAfterHours,
-        },
-      });
-
-      results.push({
-        success: true,
-        conversationId: conversation.id,
-        residentFound: !!resident,
-        afterHours: triageResult.isAfterHours,
-        occurrenceCreated: !!triageResult.occurrenceId,
-        alertTriggered: !!triageResult.alertId,
-      });
+      return { status: 'ignored', reason: 'unknown_condominium' };
     }
 
-    return { status: 'processed', results };
+    // 4. Check idempotency
+    if (messageId) {
+      const existing = await this.conversations.findMessageByExternalId(messageId);
+      if (existing) {
+        this.logger.log(`Duplicate message ${messageId} skipped`);
+        return { status: 'ignored', reason: 'duplicate' };
+      }
+    }
+
+    // 5. Create or find conversation
+    const conversation = await this.conversations.createOrFindConversation(
+      condominiumId,
+      phone,
+      resident?.id,
+    );
+
+    // 6. Register inbound message
+    await this.conversations.addMessage(conversation.id, {
+      direction: 'inbound',
+      senderName: name,
+      senderPhone: phone,
+      body,
+      externalId: messageId,
+      rawPayload: payload,
+    });
+
+    // 7. Process with AI Agent
+    const aiResult = await this.aiAgent.processMessage({
+      condominiumId,
+      conversationId: conversation.id,
+      residentId: resident?.id,
+      residentName: resident?.fullName,
+      phone,
+      senderName: name,
+      messageBody: body,
+      isRegistered: !!resident,
+    });
+
+    // 8. Save AI response as outbound message
+    await this.conversations.addMessage(conversation.id, {
+      direction: 'system',
+      body: aiResult.responseMessage,
+      rawPayload: { generatedBy: 'AiAgentService', action: aiResult.action },
+    });
+
+    // 9. Audit log
+    await this.audit.log({
+      condominiumId,
+      entityType: 'Conversation',
+      entityId: conversation.id,
+      action: 'AI_AGENT_RESPONSE',
+      actorType: 'system',
+      metadata: {
+        phone,
+        aiAction: aiResult.action,
+        occurrenceId: aiResult.occurrenceId,
+        alertId: aiResult.alertId,
+      },
+    });
+
+    return {
+      status: 'processed',
+      conversationId: conversation.id,
+      residentFound: !!resident,
+      aiAction: aiResult.action,
+      occurrenceCreated: !!aiResult.occurrenceId,
+    };
   }
 }

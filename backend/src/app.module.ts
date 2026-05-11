@@ -16,6 +16,8 @@ import { DispatchGroupsModule } from './modules/dispatch-groups/dispatch-groups.
 import { BusinessHoursModule } from './modules/business-hours/business-hours.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { CustomRolesModule } from './modules/custom-roles/custom-roles.module';
+import { AiAgentModule } from './modules/ai-agent/ai-agent.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AppController } from './app.controller';
 
@@ -39,6 +41,8 @@ import { AppController } from './app.controller';
     WebhooksModule,
     DashboardModule,
     AuditModule,
+    CustomRolesModule,
+    AiAgentModule,
   ],
   controllers: [AppController],
 })

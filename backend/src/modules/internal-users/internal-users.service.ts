@@ -5,11 +5,13 @@ import { AuditService } from '../audit/audit.service';
 
 interface CreateUserInput {
   condominiumId?: string;
+  customRoleId?: string;
   fullName: string;
   email: string;
   phone?: string;
   role: string;
   password: string;
+  permissions?: Record<string, boolean>;
 }
 
 @Injectable()
@@ -28,13 +30,15 @@ export class InternalUsersService {
     const user = await this.prisma.internalUser.create({
       data: {
         condominiumId: data.condominiumId,
+        customRoleId: data.customRoleId,
         fullName: data.fullName,
         email: data.email,
         phone: data.phone,
         role: data.role,
+        permissions: data.permissions ?? {},
         passwordHash,
       },
-      select: { id: true, email: true, fullName: true, role: true, condominiumId: true, status: true, createdAt: true },
+      select: { id: true, email: true, fullName: true, role: true, customRoleId: true, permissions: true, condominiumId: true, status: true, createdAt: true },
     });
 
     await this.audit.log({
@@ -57,7 +61,12 @@ export class InternalUsersService {
     const [data, total] = await Promise.all([
       this.prisma.internalUser.findMany({
         where,
-        select: { id: true, email: true, fullName: true, phone: true, role: true, condominiumId: true, status: true, createdAt: true },
+        select: {
+          id: true, email: true, fullName: true, phone: true, role: true,
+          customRoleId: true, permissions: true, condominiumId: true, status: true, createdAt: true,
+          condominium: { select: { id: true, name: true } },
+          customRole: { select: { id: true, name: true, color: true, permissions: true } },
+        },
         orderBy: { fullName: 'asc' },
         take: limit,
         skip: (page - 1) * limit,
@@ -73,8 +82,9 @@ export class InternalUsersService {
       where: { id },
       select: {
         id: true, email: true, fullName: true, phone: true, role: true,
-        condominiumId: true, status: true, createdAt: true,
+        customRoleId: true, permissions: true, condominiumId: true, status: true, createdAt: true,
         condominium: { select: { id: true, name: true } },
+        customRole: { select: { id: true, name: true, color: true, permissions: true } },
       },
     });
     if (!user) throw new NotFoundException('User not found');
@@ -86,7 +96,7 @@ export class InternalUsersService {
     const user = await this.prisma.internalUser.update({
       where: { id },
       data,
-      select: { id: true, email: true, fullName: true, role: true, condominiumId: true, status: true },
+      select: { id: true, email: true, fullName: true, role: true, permissions: true, condominiumId: true, status: true },
     });
 
     await this.audit.log({

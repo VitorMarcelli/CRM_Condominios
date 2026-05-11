@@ -1,25 +1,21 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { WebhooksController } from './webhooks.controller';
 import { WebhooksService } from './webhooks.service';
-import { AfterHoursTriageService } from './after-hours-triage.service';
-import { WhatsAppPayloadParser } from './services/whatsapp-parser.service';
 import { ConversationsModule } from '../conversations/conversations.module';
 import { ResidentsModule } from '../residents/residents.module';
-import { BusinessHoursModule } from '../business-hours/business-hours.module';
-import { OccurrencesModule } from '../occurrences/occurrences.module';
-import { AlertsModule } from '../alerts/alerts.module';
+import { AiAgentModule } from '../ai-agent/ai-agent.module';
 import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
+    ConfigModule,
     ConversationsModule,
     ResidentsModule,
-    BusinessHoursModule,
-    OccurrencesModule,
-    AlertsModule,
+    AiAgentModule,
     AuditModule,
   ],
   controllers: [WebhooksController],
-  providers: [WebhooksService, AfterHoursTriageService, WhatsAppPayloadParser],
+  providers: [WebhooksService],
 })
 export class WebhooksModule {}

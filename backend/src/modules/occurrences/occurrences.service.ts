@@ -40,7 +40,7 @@ export class OccurrencesService {
       data: {
         occurrenceId: occurrence.id,
         action: 'CREATED',
-        description: `Occurrence created: ${data.title}`,
+        description: `Chamado criado: ${data.title}`,
         actorType: actorId ? 'user' : 'system',
         actorId,
         metadata: data.metadata,
@@ -95,7 +95,9 @@ export class OccurrencesService {
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: any) {
+    const isInternalViewer = user && (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN');
+
     const occurrence = await this.prisma.occurrence.findUnique({
       where: { id },
       include: {
@@ -104,7 +106,10 @@ export class OccurrencesService {
         assignedUser: { select: { id: true, fullName: true, email: true } },
         condominium: { select: { id: true, name: true } },
         conversation: { select: { id: true, channel: true, status: true } },
-        timeline: { orderBy: { createdAt: 'desc' } },
+        timeline: { 
+          where: isInternalViewer ? undefined : { isInternal: false },
+          orderBy: { createdAt: 'desc' } 
+        },
         alerts: true,
         attachments: true,
       },
@@ -113,15 +118,15 @@ export class OccurrencesService {
     return occurrence;
   }
 
-  async update(id: string, data: Partial<CreateOccurrenceInput>, actorId: string) {
-    await this.findOne(id);
+  async update(id: string, data: Partial<CreateOccurrenceInput>, actorId: string, user?: any) {
+    await this.findOne(id, user);
     const updated = await this.prisma.occurrence.update({ where: { id }, data });
 
     await this.prisma.occurrenceTimeline.create({
       data: {
         occurrenceId: id,
         action: 'UPDATED',
-        description: 'Occurrence updated',
+        description: 'Chamado atualizado',
         actorType: 'user',
         actorId,
         metadata: data,
@@ -131,8 +136,8 @@ export class OccurrencesService {
     return updated;
   }
 
-  async updateStatus(id: string, status: string, actorId: string) {
-    const occurrence = await this.findOne(id);
+  async updateStatus(id: string, status: string, actorId: string, user?: any) {
+    const occurrence = await this.findOne(id, user);
 
     const data: Record<string, unknown> = { status };
     if (status === 'closed' || status === 'resolved') {
@@ -145,7 +150,7 @@ export class OccurrencesService {
       data: {
         occurrenceId: id,
         action: 'STATUS_CHANGE',
-        description: `Status changed to ${status}`,
+        description: `Status alterado para ${status}`,
         actorType: 'user',
         actorId,
         metadata: { oldStatus: occurrence.status, newStatus: status },
@@ -165,8 +170,8 @@ export class OccurrencesService {
     return updated;
   }
 
-  async updatePriority(id: string, priority: string, actorId: string) {
-    const occurrence = await this.findOne(id);
+  async updatePriority(id: string, priority: string, actorId: string, user?: any) {
+    const occurrence = await this.findOne(id, user);
 
     const updated = await this.prisma.occurrence.update({
       where: { id },
@@ -177,7 +182,7 @@ export class OccurrencesService {
       data: {
         occurrenceId: id,
         action: 'PRIORITY_CHANGE',
-        description: `Priority changed to ${priority}`,
+        description: `Prioridade alterada para ${priority}`,
         actorType: 'user',
         actorId,
         metadata: { oldPriority: occurrence.priority, newPriority: priority },
@@ -187,19 +192,22 @@ export class OccurrencesService {
     return updated;
   }
 
-  async assign(id: string, assignedUserId: string, actorId: string) {
-    await this.findOne(id);
+  async assign(id: string, assignedUserId: string, actorId: string, user?: any) {
+    await this.findOne(id, user);
 
     const updated = await this.prisma.occurrence.update({
       where: { id },
       data: { assignedUserId },
     });
 
+    const userToAssign = await this.prisma.internalUser.findUnique({ where: { id: assignedUserId } });
+    const assigneeName = userToAssign?.fullName || 'Usuário';
+
     await this.prisma.occurrenceTimeline.create({
       data: {
         occurrenceId: id,
         action: 'ASSIGNED',
-        description: `Assigned to user ${assignedUserId}`,
+        description: `Atribuído para ${assigneeName}`,
         actorType: 'user',
         actorId,
         metadata: { assignedUserId },
@@ -207,5 +215,64 @@ export class OccurrencesService {
     });
 
     return updated;
+  }
+
+  async addTimelineEntry(id: string, data: { description: string; isInternal?: boolean }, user: any) {
+    const occurrence = await this.findOne(id, user);
+
+    const timeline = await this.prisma.occurrenceTimeline.create({
+      data: {
+        occurrenceId: id,
+        action: 'NOTE',
+        description: data.description,
+        isInternal: data.isInternal || false,
+        actorType: 'user',
+        actorId: user.sub,
+      },
+    });
+
+    if (data.isInternal) {
+      await this.audit.log({
+        condominiumId: occurrence.condominiumId,
+        entityType: 'OccurrenceTimeline',
+        entityId: timeline.id,
+        action: 'CREATE_INTERNAL_NOTE',
+        actorType: 'user',
+        actorId: user.sub,
+        metadata: { occurrenceId: id },
+      });
+    }
+
+    return timeline;
+  }
+
+  async remove(id: string, user: any) {
+    const occurrence = await this.findOne(id, user);
+
+    if (occurrence.status !== 'resolved' && occurrence.status !== 'closed') {
+      throw new Error('Somente ocorrências resolvidas podem ser excluídas.');
+    }
+
+    // Prisma will cascade delete timelines and attachments if configured, 
+    // otherwise we need to delete them manually. Assuming cascade is on for now, 
+    // or we can manually delete timelines first.
+    await this.prisma.occurrenceTimeline.deleteMany({
+      where: { occurrenceId: id }
+    });
+
+    await this.prisma.occurrence.delete({
+      where: { id }
+    });
+
+    await this.audit.log({
+      condominiumId: occurrence.condominiumId,
+      entityType: 'Occurrence',
+      entityId: id,
+      action: 'DELETE',
+      actorType: 'user',
+      actorId: user.sub,
+    });
+
+    return { success: true };
   }
 }

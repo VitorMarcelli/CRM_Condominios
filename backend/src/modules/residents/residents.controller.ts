@@ -2,8 +2,8 @@ import { Controller, Get, Post, Put, Body, Param, Query, UseGuards } from '@nest
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ResidentsService } from './residents.service';
-import { RolesGuard } from '../../common/guards';
-import { CurrentUser } from '../../common/decorators';
+import { PermissionsGuard } from '../../common/guards';
+import { CurrentUser, RequirePermission } from '../../common/decorators';
 import { IsString, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -18,18 +18,20 @@ class CreateResidentDto {
 
 @ApiTags('Residents')
 @Controller('residents')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 @ApiBearerAuth()
 export class ResidentsController {
   constructor(private service: ResidentsService) {}
 
   @Post()
+  @RequirePermission('residents', 'create')
   @ApiOperation({ summary: 'Create resident' })
   create(@Body() dto: CreateResidentDto) {
     return this.service.create(dto);
   }
 
   @Get()
+  @RequirePermission('residents', 'view')
   @ApiOperation({ summary: 'List residents' })
   findAll(
     @CurrentUser() user: any,
@@ -64,6 +66,7 @@ export class ResidentsController {
   }
 
   @Put(':id')
+  @RequirePermission('residents', 'edit')
   @ApiOperation({ summary: 'Update resident' })
   update(@Param('id') id: string, @Body() dto: Partial<CreateResidentDto>) {
     return this.service.update(id, dto);
