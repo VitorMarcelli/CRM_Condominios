@@ -2,7 +2,7 @@
 
 Plataforma web para centralizar atendimento, ocorrências, comunicação e automação de alertas em condomínios. Substitui a operação informal por WhatsApp por uma central estruturada com triagem, escalonamento, auditoria e SLA.
 
-> **Status:** MVP funcional — backend, frontend, banco modelado, autenticação JWT, CRUDs, ocorrências, alertas, regras de escalonamento e dashboard operacionais. WhatsApp em modo *mock* (Cloud API format).
+> **Status:** MVP funcional — backend, frontend, banco modelado, autenticação JWT, CRUDs, ocorrências, alertas, regras de escalonamento e dashboard operacionais. Integração com WhatsApp via Evolution API e inteligência artificial (Google Gemini) para atendimento automático e triagem 24/7.
 
 ---
 
@@ -29,10 +29,10 @@ Plataforma web para centralizar atendimento, ocorrências, comunicação e autom
 - **Cadastros completos** — Condomínios, Blocos, Unidades, Moradores, Usuários Internos.
 - **Atendimento e ocorrências** — Conversas, mensagens, ocorrências com status, prioridade, categorias e responsáveis.
 - **Automação operacional** — Horário comercial, triagem automática, regras de escalonamento, alertas críticos.
-- **Integração WhatsApp** — Webhook compatível com WhatsApp Cloud API (provider *mock* no MVP, pronto para produção).
-- **Dashboard de KPIs** — Métricas operacionais em tempo real.
-- **Auditoria** — Log completo de ações sensíveis.
-- **RBAC** — Papéis: `SUPER_ADMIN`, `SINDICO`, `ATENDENTE`, `MORADOR`, com guardas e isolamento por condomínio.
+- **Integração WhatsApp & IA** — Atendimento 24/7 com agente de IA (Google Gemini) para triagem, e comunicação real via Evolution API.
+- **Dashboard de KPIs** — Métricas operacionais em tempo real com visual premium (Bento-Grid).
+- **Auditoria** — Log completo de ações sensíveis e rastreabilidade para administradores.
+- **RBAC Avançado** — Papéis padrão (`SUPER_ADMIN`, `SINDICO`, `ATENDENTE`, `MORADOR`) e criação de funções customizadas (Custom Roles) com permissões granulares.
 
 ---
 
@@ -45,6 +45,7 @@ Plataforma web para centralizar atendimento, ocorrências, comunicação e autom
 | Banco | PostgreSQL 16 |
 | Cache / Filas | Redis 7 (provisionado, BullMQ pronto para uso) |
 | Auth | JWT + Refresh Token + bcrypt + RBAC |
+| IA & Mensageria | Google Gemini API, Evolution API (WhatsApp) |
 | Infra | Docker, Docker Compose |
 | API Docs | Swagger / OpenAPI |
 
@@ -58,15 +59,17 @@ Plataforma web para centralizar atendimento, ocorrências, comunicação e autom
 │  Next.js   │  HTTP │   NestJS     │ Prisma│   16-alpine    │
 │  :3000     │       │   :3001      │       └────────────────┘
 └────────────┘       │              │       ┌────────────────┐
-                     │              │ ◄───► │     Redis      │
-                     └──────────────┘       │   (filas)      │
-                            ▲               └────────────────┘
-                            │
-                     ┌──────┴───────┐
-                     │  Webhook     │
-                     │  WhatsApp    │
-                     │  (Cloud API) │
-                     └──────────────┘
+                     │   ┌──────┐   │ ◄───► │     Redis      │
+                     │   │ AI   │   │       │   (filas)      │
+                     │   └──────┘   │       └────────────────┘
+                     └──────────────┘               ▲
+                            ▲ │                     │
+                        HTTP│ │HTTP                 │
+                            │ ▼                     │
+                     ┌──────────────┐       ┌───────┴────────┐
+                     │ Evolution API│       │  Google Gemini │
+                     │  (WhatsApp)  │       │  (AI Agent)    │
+                     └──────────────┘       └────────────────┘
 ```
 
 ---
@@ -82,6 +85,14 @@ Plataforma web para centralizar atendimento, ocorrências, comunicação e autom
 ## Subir o projeto com Docker (recomendado)
 
 Esta é a forma homologada e a mesma usada em produção.
+
+**Para usuários do Windows:**
+Você pode utilizar o script interativo `iniciar-crm.bat` localizado na raiz do projeto. Ele automatiza as verificações de dependências, inicia os containers, mostra logs em tempo real e cuida da resiliência do ambiente de forma simplificada. Basta dar um duplo clique ou rodar no terminal:
+```cmd
+.\iniciar-crm.bat
+```
+
+**Para usuários de Linux/macOS ou setup manual:**
 
 ```bash
 # 1. Clonar o repositório
@@ -230,7 +241,10 @@ Veja [`.env.example`](./.env.example) para a lista completa. As principais:
 | `NEXT_PUBLIC_API_URL` | URL da API exposta ao cliente | `http://localhost:3001` |
 | `SEED_ADMIN_EMAIL` | Email do super admin no seed | `admin@crmcondominios.com` |
 | `SEED_ADMIN_PASSWORD` | Senha do super admin no seed | `Admin@123456` |
-| `WHATSAPP_PROVIDER` | `mock` ou `cloud` | `mock` |
+| `WHATSAPP_PROVIDER` | `mock` ou `evolution` | `evolution` |
+| `EVOLUTION_API_URL` | URL do servidor Evolution API | `http://localhost:8080` |
+| `EVOLUTION_API_KEY` | Chave de acesso Evolution API | — |
+| `GEMINI_API_KEY` | Chave de acesso Google Gemini | — |
 
 ---
 
