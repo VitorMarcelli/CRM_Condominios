@@ -19,6 +19,14 @@ export class UnitsService {
     });
   }
 
+  async findByCondominium(condominiumId: string) {
+    return this.prisma.unit.findMany({
+      where: { condominiumId },
+      include: { block: true },
+      orderBy: [{ block: { name: 'asc' } }, { number: 'asc' }],
+    });
+  }
+
   async findOne(id: string) {
     const unit = await this.prisma.unit.findUnique({
       where: { id },

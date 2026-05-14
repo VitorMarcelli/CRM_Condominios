@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateCondominiumDto } from './dto/create-condominium.dto';
@@ -34,6 +34,14 @@ export class CondominiumsService {
     const [data, total] = await Promise.all([
       this.prisma.condominium.findMany({
         where,
+        include: {
+          _count: { select: { residents: true, units: true } },
+          internalUsers: {
+            where: { role: { in: ['SINDICO', 'ADMIN'] } },
+            select: { fullName: true, phone: true, email: true },
+            take: 1
+          }
+        },
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: (page - 1) * limit,
@@ -76,7 +84,11 @@ export class CondominiumsService {
   }
 
   async updateStatus(id: string, status: string, actorId: string) {
-    await this.findOne(id);
+    const condominium = await this.findOne(id);
+
+    if (status === 'inactive' && condominium._count.residents > 0) {
+      throw new BadRequestException('Não é possível inativar um condomínio que possui moradores vinculados.');
+    }
 
     const updated = await this.prisma.condominium.update({
       where: { id },
@@ -94,5 +106,28 @@ export class CondominiumsService {
     });
 
     return updated;
+  }
+
+  async delete(id: string, actorId: string) {
+    const condominium = await this.findOne(id);
+
+    if (condominium._count.residents > 0) {
+      throw new BadRequestException('Não é possível excluir um condomínio que possui moradores vinculados.');
+    }
+
+    await this.audit.log({
+      condominiumId: id,
+      entityType: 'Condominium',
+      entityId: id,
+      action: 'DELETE',
+      actorType: 'user',
+      actorId,
+    });
+
+    await this.prisma.condominium.delete({
+      where: { id },
+    });
+
+    return { success: true };
   }
 }

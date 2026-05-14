@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ResidentsService } from './residents.service';
@@ -70,5 +70,12 @@ export class ResidentsController {
   @ApiOperation({ summary: 'Update resident' })
   update(@Param('id') id: string, @Body() dto: Partial<CreateResidentDto>) {
     return this.service.update(id, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermission('residents', 'delete')
+  @ApiOperation({ summary: 'Delete resident' })
+  delete(@Param('id') id: string) {
+    return this.service.delete(id);
   }
 }

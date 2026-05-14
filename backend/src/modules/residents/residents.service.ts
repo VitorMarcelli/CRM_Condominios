@@ -72,6 +72,11 @@ export class ResidentsService {
     return this.prisma.resident.update({ where: { id }, data });
   }
 
+  async delete(id: string) {
+    await this.findOne(id);
+    return this.prisma.resident.delete({ where: { id } });
+  }
+
   async search(params: { name?: string; phone?: string; unit?: string; condominiumId?: string }) {
     const where: Record<string, unknown> = {};
     if (params.condominiumId) where.condominiumId = params.condominiumId;

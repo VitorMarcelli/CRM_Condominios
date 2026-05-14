@@ -36,6 +36,12 @@ export class UnitsController {
     return this.service.findByBlock(blockId);
   }
 
+  @Get('condominiums/:condominiumId/units')
+  @ApiOperation({ summary: 'List units by condominium' })
+  findByCondominium(@Param('condominiumId') condominiumId: string) {
+    return this.service.findByCondominium(condominiumId);
+  }
+
   @Post('blocks/:blockId/units')
   @ApiOperation({ summary: 'Create unit in block' })
   create(@Param('blockId') blockId: string, @Body() dto: CreateUnitDto) {

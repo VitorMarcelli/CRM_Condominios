@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Search, Pencil, Trash2, Plus, Users, Building2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Search, Pencil, Trash2, Plus, Users, Building, Building2, AlertTriangle, Loader2, Home } from 'lucide-react';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -120,6 +120,7 @@ export default function ResidentsPage() {
               <tr className="border-b border-slate-100 dark:border-white/5">
                 <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500">Morador</th>
                 <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500">Contato</th>
+                <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500">Condomínio</th>
                 <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500">Unidade</th>
                 <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500">Status</th>
                 <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500 text-right">Ações</th>
@@ -128,7 +129,7 @@ export default function ResidentsPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-20 text-center">
+                  <td colSpan={6} className="py-20 text-center">
                     <div className="inline-block w-8 h-8 border-4 border-slate-200 border-t-blue-600 dark:border-slate-800 dark:border-t-blue-500 rounded-full animate-spin" />
                   </td>
                 </tr>
@@ -159,12 +160,24 @@ export default function ResidentsPage() {
                       </div>
                     </td>
 
+                    {/* CONDOMINIUM */}
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
+                          <Building className="w-4 h-4 text-blue-600 dark:text-blue-500" />
+                        </div>
+                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                          {resident.condominium?.name || 'Não vinculado'}
+                        </span>
+                      </div>
+                    </td>
+
                     {/* UNIT */}
                     <td className="py-4 px-4">
                       {resident.unit ? (
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                            <Building2 className="w-4 h-4 text-slate-500" />
+                            <Home className="w-4 h-4 text-slate-500" />
                           </div>
                           <div className="flex flex-col">
                             <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Unidade {resident.unit.number}</span>
@@ -207,7 +220,7 @@ export default function ResidentsPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="py-16 text-center">
+                  <td colSpan={6} className="py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <Users className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-3" />
                       <p className="text-sm font-bold text-slate-900 dark:text-white">Nenhum morador encontrado</p>

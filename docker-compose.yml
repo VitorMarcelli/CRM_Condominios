@@ -12,7 +12,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-crm_user}']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-crm_user} -d ${POSTGRES_DB:-crm_condominios}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -32,32 +32,39 @@ services:
       retries: 5
 
   evolution-api:
-    image: atendai/evolution-api:latest
+    image: evoapicloud/evolution-api:v2.3.7
     container_name: crm_evolution_api
     restart: unless-stopped
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - '8080:8080'
     environment:
-      - SERVER_URL=http://localhost:8080
+      - SERVER_URL=http://192.168.15.20:8080
       - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-crm-evolution-key-dev}
       - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true
-      - DATABASE_ENABLED=false
+      - DATABASE_ENABLED=true
       - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://${POSTGRES_USER:-crm_user}:${POSTGRES_PASSWORD:-crm_password}@postgres:5432/${POSTGRES_DB:-crm_condominios}?schema=evolution
+      - DATABASE_CONNECTION_URI=postgresql://crm_user:crm_password@postgres:5432/crm_condominios?schema=evolution
       - DATABASE_SAVE_DATA_INSTANCE=true
       - DATABASE_SAVE_DATA_NEW_MESSAGE=true
       - DATABASE_SAVE_DATA_CONTACTS=true
-      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_ENABLED=false
       - CACHE_REDIS_URI=redis://redis:6379
       - CACHE_REDIS_PREFIX_KEY=evolution
-      - CACHE_LOCAL_ENABLED=false
-      - LOG_LEVEL=WARN
+      - CACHE_LOCAL_ENABLED=true
+      - CONFIG_SESSION_PHONE_VERSION=2.3000.1028103742
+      - NODE_OPTIONS=--network-family-autoselection-attempt-timeout=1000
+      - LOG_LEVEL=DEBUG
       - DEL_INSTANCE=false
       - WEBHOOK_GLOBAL_ENABLED=false
       - WEBHOOK_GLOBAL_URL=
       - WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=false
+      - WEBSOCKET_ENABLED=true
+      - WEBSOCKET_GLOBAL_EVENTS=true
     volumes:
       - evolution_data:/evolution/instances
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CondominiumsService } from './condominiums.service';
@@ -51,5 +51,12 @@ export class CondominiumsController {
   @ApiOperation({ summary: 'Update condominium status' })
   updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto, @CurrentUser('sub') userId: string) {
     return this.service.updateStatus(id, dto.status, userId);
+  }
+
+  @Delete(':id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Delete condominium' })
+  delete(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return this.service.delete(id, userId);
   }
 }

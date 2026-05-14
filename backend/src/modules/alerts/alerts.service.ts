@@ -1,12 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { EvolutionApiProvider } from '../webhooks/providers/evolution-api.provider';
 
 @Injectable()
 export class AlertsService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private evolution: EvolutionApiProvider,
   ) {}
 
   async trigger(data: {
@@ -37,11 +39,13 @@ export class AlertsService {
       },
     });
 
-    // Create alert recipients from dispatch group members
+    // Create alert recipients from dispatch group members and send WhatsApp notifications
+    const occurrence = await this.prisma.occurrence.findUnique({ where: { id: data.occurrenceId } });
+    
     for (const rule of rules) {
       if (rule.dispatchGroup) {
         for (const member of rule.dispatchGroup.members) {
-          await this.prisma.alertRecipient.create({
+          const recipient = await this.prisma.alertRecipient.create({
             data: {
               alertId: alert.id,
               userId: member.userId,
@@ -49,6 +53,18 @@ export class AlertsService {
               status: 'pending',
             },
           });
+
+          // Send real WhatsApp notification via Evolution API if user has a phone number
+          if (member.user.phone) {
+            try {
+              const message = `🚨 *ALERTA ${data.urgencyLevel.toUpperCase()}*\n\nNova ocorrência requer sua atenção imediata!\n\n*ID:* ${alert.id.split('-')[0].toUpperCase()}\n*Descrição:* ${occurrence?.title || 'Não informada'}\n\nAcesse o CRM para reconhecer o alerta.`;
+              await this.evolution.sendText(member.user.phone, message);
+              await this.updateRecipientStatus(recipient.id, 'sent');
+            } catch (error) {
+              console.error(`Failed to send WhatsApp alert to ${member.user.phone}:`, error);
+              await this.updateRecipientStatus(recipient.id, 'failed');
+            }
+          }
         }
       }
     }

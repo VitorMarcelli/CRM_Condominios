@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Plus, Search, Pencil, Trash2, Building, ShieldAlert, AlertTriangle, Loader2 } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Building, ShieldAlert, AlertTriangle, Loader2, MoreVertical, Ban, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
 export default function CondominiumsPage() {
   const { user } = useAuthStore();
@@ -20,6 +21,9 @@ export default function CondominiumsPage() {
 
   const [condominiumToToggle, setCondominiumToToggle] = useState<{ id: string, name: string, status: string } | null>(null);
   const [isToggling, setIsToggling] = useState(false);
+
+  const [condominiumToDelete, setCondominiumToDelete] = useState<{ id: string, name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Protect route
   useEffect(() => {
@@ -59,7 +63,7 @@ export default function CondominiumsPage() {
     const newStatus = condominiumToToggle.status === 'active' ? 'inactive' : 'active';
     try {
       setIsToggling(true);
-      await api.put(`/condominiums/${condominiumToToggle.id}`, { status: newStatus });
+      await api.patch(`/condominiums/${condominiumToToggle.id}/status`, { status: newStatus });
       toast.success(`Condomínio ${newStatus === 'active' ? 'ativado' : 'inativado'} com sucesso.`);
       setCondominiumToToggle(null);
       fetchCondominiums();
@@ -67,6 +71,25 @@ export default function CondominiumsPage() {
       toast.error('Erro ao atualizar status do condomínio.');
     } finally {
       setIsToggling(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!condominiumToDelete) return;
+    try {
+      setIsDeleting(true);
+      await api.delete(`/condominiums/${condominiumToDelete.id}`);
+      toast.success('Condomínio excluído com sucesso.');
+      setCondominiumToDelete(null);
+      fetchCondominiums();
+    } catch (error: any) {
+      if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error('Erro ao excluir condomínio.');
+      }
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -134,9 +157,10 @@ export default function CondominiumsPage() {
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="border-b border-slate-100 dark:border-white/5">
-                <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500 w-[350px]">Nome do Condomínio</th>
+                <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500 w-[320px]">Nome do Condomínio</th>
                 <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500">Documento / CNPJ</th>
-                <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500">Contato</th>
+                <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500">Síndico Responsável</th>
+                <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500">Contato (Condomínio)</th>
                 <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500">Status</th>
                 <th className="py-4 px-4 font-bold text-[11px] uppercase tracking-wider text-slate-500 text-right">Ações</th>
               </tr>
@@ -144,7 +168,7 @@ export default function CondominiumsPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-20 text-center">
+                  <td colSpan={6} className="py-20 text-center">
                     <div className="inline-block w-8 h-8 border-4 border-slate-200 border-t-blue-600 dark:border-slate-800 dark:border-t-blue-500 rounded-full animate-spin" />
                   </td>
                 </tr>
@@ -161,6 +185,10 @@ export default function CondominiumsPage() {
                         <div className="flex flex-col">
                           <span className="text-sm font-bold text-slate-900 dark:text-white">{condominium.name}</span>
                           <span className="text-[11px] font-semibold text-slate-400">ID: {condominium.id.substring(0, 8).toUpperCase()}</span>
+                          <div className="flex gap-2 mt-1.5">
+                             <span className="text-[10px] bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-md font-bold">{condominium._count?.residents || 0} Moradores</span>
+                             <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md font-bold">{condominium._count?.units || 0} Unidades</span>
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -168,6 +196,18 @@ export default function CondominiumsPage() {
                     {/* DOCUMENT */}
                     <td className="py-4 px-4">
                       <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{condominium.document || '-'}</span>
+                    </td>
+
+                    {/* SÍNDICO */}
+                    <td className="py-4 px-4">
+                      {condominium.internalUsers && condominium.internalUsers.length > 0 ? (
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-slate-900 dark:text-white">{condominium.internalUsers[0].fullName}</span>
+                          <span className="text-[11px] font-medium text-slate-500">{condominium.internalUsers[0].phone || condominium.internalUsers[0].email}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-medium text-slate-400 italic">Sem síndico vinculado</span>
+                      )}
                     </td>
 
                     {/* CONTACT */}
@@ -185,24 +225,47 @@ export default function CondominiumsPage() {
 
                     {/* ACTIONS */}
                     <td className="py-4 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => router.push(`/dashboard/condominiums/${condominium.id}/edit`)}
-                          className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => setCondominiumToToggle({ id: condominium.id, name: condominium.name, status: condominium.status })}
-                          className={`h-8 w-8 ${condominium.status === 'active' ? 'text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'}`}
-                          title={condominium.status === 'active' ? 'Inativar' : 'Ativar'}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                      <div className="flex items-center justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48 rounded-xl">
+                            <DropdownMenuItem onClick={() => router.push(`/dashboard/condominiums/${condominium.id}/edit`)} className="font-semibold cursor-pointer py-2.5">
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Editar Condomínio
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                if (condominium.status === 'active' && condominium._count?.residents > 0) {
+                                  toast.error('Não é possível inativar um condomínio que possui moradores vinculados.');
+                                  return;
+                                }
+                                setCondominiumToToggle({ id: condominium.id, name: condominium.name, status: condominium.status });
+                              }}
+                              className="font-semibold cursor-pointer py-2.5"
+                            >
+                              {condominium.status === 'active' ? <Ban className="mr-2 h-4 w-4 text-orange-500" /> : <CheckCircle className="mr-2 h-4 w-4 text-emerald-500" />}
+                              {condominium.status === 'active' ? 'Inativar Condomínio' : 'Ativar Condomínio'}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                if (condominium._count?.residents > 0) {
+                                  toast.error('Não é possível excluir um condomínio que possui moradores vinculados.');
+                                  return;
+                                }
+                                setCondominiumToDelete({ id: condominium.id, name: condominium.name });
+                              }}
+                              className="font-semibold text-red-600 focus:text-red-700 cursor-pointer py-2.5"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir Condomínio
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
 
@@ -210,7 +273,7 @@ export default function CondominiumsPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="py-16 text-center">
+                  <td colSpan={6} className="py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <ShieldAlert className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-3" />
                       <p className="text-sm font-bold text-slate-900 dark:text-white">Nenhum condomínio encontrado</p>
@@ -255,6 +318,41 @@ export default function CondominiumsPage() {
             >
               {isToggling ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               {isToggling ? 'Aguarde...' : 'Sim, confirmar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* CONFIRM DELETE DIALOG */}
+      <Dialog open={!!condominiumToDelete} onOpenChange={(open) => !open && !isDeleting && setCondominiumToDelete(null)}>
+        <DialogContent className="sm:max-w-[425px] rounded-[2rem] border-slate-100 dark:border-white/10 shadow-2xl p-8 bg-white dark:bg-[#111111]">
+          <DialogHeader className="mb-6">
+            <DialogTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <Trash2 className="w-6 h-6 text-red-500" />
+              Excluir Condomínio
+            </DialogTitle>
+            <div className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-2">
+              Você tem certeza que deseja excluir permanentemente o condomínio <strong className="text-slate-900 dark:text-white">{condominiumToDelete?.name}</strong>? Essa ação apagará o registro do banco de dados e não poderá ser desfeita.
+            </div>
+          </DialogHeader>
+          
+          <DialogFooter className="pt-4 mt-2 border-t border-slate-100 dark:border-white/5">
+            <Button 
+              type="button" 
+              variant="ghost" 
+              onClick={() => setCondominiumToDelete(null)} 
+              className="rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-white/5"
+              disabled={isDeleting}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              type="button" 
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold px-6 shadow-md shadow-red-500/20 hover:scale-105 transition-transform"
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              {isDeleting ? 'Excluindo...' : 'Sim, excluir'}
             </Button>
           </DialogFooter>
         </DialogContent>

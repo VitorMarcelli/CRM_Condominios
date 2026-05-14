@@ -34,6 +34,16 @@ export default function NewResidentPage() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (formData.condominiumId) {
+      api.get(`/condominiums/${formData.condominiumId}/units`)
+        .then(res => setUnits(res.data.data || res.data || []))
+        .catch(console.error);
+    } else {
+      setUnits([]);
+    }
+  }, [formData.condominiumId]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -90,14 +100,19 @@ export default function NewResidentPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             
             {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
-              <div className="space-y-3 md:col-span-2">
+              <div className="space-y-3 md:col-span-1">
                 <Label htmlFor="condominiumId" className="text-xs font-bold text-slate-400 uppercase tracking-wider">Condomínio *</Label>
                 <Select 
                   value={formData.condominiumId} 
-                  onValueChange={(val) => handleSelectChange('condominiumId', val)}
+                  onValueChange={(val) => {
+                    handleSelectChange('condominiumId', val);
+                    handleSelectChange('unitId', 'none'); // Reset unit
+                  }}
                 >
                   <SelectTrigger className="h-14 bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/10 rounded-xl text-base font-semibold">
-                    <SelectValue placeholder="Selecione o condomínio vinculado" />
+                    <SelectValue placeholder="Selecione o condomínio">
+                      {formData.condominiumId ? (condominiums.find(c => c.id === formData.condominiumId)?.name || 'Selecione o condomínio') : null}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-slate-200 dark:border-white/10 shadow-xl">
                     {condominiums.map(c => (
@@ -107,6 +122,33 @@ export default function NewResidentPage() {
                 </Select>
               </div>
             )}
+
+            <div className="space-y-3 md:col-span-1">
+              <Label htmlFor="unitId" className="text-xs font-bold text-slate-400 uppercase tracking-wider">Unidade / Casa</Label>
+              <Select 
+                value={formData.unitId} 
+                onValueChange={(val) => handleSelectChange('unitId', val)}
+                disabled={!formData.condominiumId || units.length === 0}
+              >
+                <SelectTrigger className="h-14 bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/10 rounded-xl text-base font-semibold">
+                  <SelectValue placeholder={units.length === 0 ? "Nenhuma unidade cadastrada" : "Selecione a unidade"}>
+                    {formData.unitId === 'none' 
+                      ? 'Sem unidade vinculada' 
+                      : units.find(u => u.id === formData.unitId)
+                        ? `${units.find(u => u.id === formData.unitId)?.block?.name ? units.find(u => u.id === formData.unitId)?.block?.name + ' - ' : ''}Unidade ${units.find(u => u.id === formData.unitId)?.number}`
+                        : null}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-slate-200 dark:border-white/10 shadow-xl max-h-60">
+                  <SelectItem value="none" className="font-semibold text-slate-500 py-3">Sem unidade vinculada</SelectItem>
+                  {units.map((u: any) => (
+                    <SelectItem key={u.id} value={u.id} className="font-semibold text-slate-700 dark:text-slate-300 py-3">
+                      {u.block?.name ? `${u.block.name} - ` : ''}Unidade {u.number}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="space-y-3 md:col-span-2">
               <Label htmlFor="fullName" className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nome Completo *</Label>
