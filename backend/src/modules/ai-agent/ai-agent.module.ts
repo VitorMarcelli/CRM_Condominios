@@ -8,7 +8,6 @@ import { PrismaModule } from '../../common/prisma/prisma.module';
 import { OccurrencesModule } from '../occurrences/occurrences.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { ConversationsModule } from '../conversations/conversations.module';
-import { EvolutionApiProvider } from '../webhooks/providers/evolution-api.provider';
 
 @Module({
   imports: [
@@ -23,8 +22,7 @@ import { EvolutionApiProvider } from '../webhooks/providers/evolution-api.provid
     GeminiService,
     ChatMemoryService,
     NotifierService,
-    EvolutionApiProvider,
   ],
-  exports: [AiAgentService, GeminiService, ChatMemoryService, NotifierService, EvolutionApiProvider],
+  exports: [AiAgentService, GeminiService, ChatMemoryService, NotifierService],
 })
 export class AiAgentModule {}

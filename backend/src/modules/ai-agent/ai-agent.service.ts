@@ -22,7 +22,7 @@ export interface AiAgentInput {
 
 export interface AiAgentResult {
   responseMessage: string;
-  action: 'chat' | 'ticket_created' | 'unregistered_notified' | 'fallback';
+  action: 'chat' | 'ticket_created' | 'unregistered_notified' | 'handoff' | 'fallback';
   occurrenceId?: string;
   alertId?: string;
 }
@@ -144,6 +144,21 @@ export class AiAgentService {
         };
       }
 
+      case 'HANDOFF': {
+        await this.evolution.sendText(context.phone, response.message);
+        
+        // Update database to assign to human
+        await this.prisma.conversation.update({
+          where: { id: context.conversationId },
+          data: { isAiActive: false },
+        });
+
+        return {
+          responseMessage: response.message,
+          action: 'handoff',
+        };
+      }
+
       case 'CHAT':
       default: {
         // Send chat response
@@ -248,17 +263,35 @@ export class AiAgentService {
       const messages = await this.prisma.message.findMany({
         where: { conversationId },
         orderBy: { sentAt: 'asc' },
-        take: 20, // Last 20 messages for context
-        select: { direction: true, body: true },
+        take: 30, // Get more messages to account for grouping
+        select: { direction: true, body: true, rawPayload: true },
       });
 
-      return messages
-        .filter(m => m.body)
-        .map(m => ({
-          role: m.direction === 'inbound' ? 'user' as const : 'model' as const,
-          parts: [{ text: m.body! }],
-        }));
-    } catch {
+      const contents: Content[] = [];
+
+      for (const m of messages) {
+        if (!m.body) continue;
+        
+        // Skip system automation messages
+        const payload = m.rawPayload as any;
+        if (payload?.generatedBy === 'system') continue;
+
+        const role = m.direction === 'inbound' ? 'user' : 'model';
+        
+        if (contents.length > 0 && contents[contents.length - 1].role === role) {
+          // Collapse consecutive messages
+          contents[contents.length - 1].parts[0].text += `\n\n${m.body}`;
+        } else {
+          contents.push({
+            role,
+            parts: [{ text: m.body }],
+          });
+        }
+      }
+
+      return contents;
+    } catch (error) {
+      this.logger.error(`Failed to build conversation history: ${(error as any).message}`);
       return [];
     }
   }

@@ -4,7 +4,7 @@ import { GoogleGenerativeAI, GenerativeModel, Content } from '@google/generative
 import { buildSystemPrompt } from './prompts/system-prompt';
 
 export interface GeminiResponse {
-  type: 'CHAT' | 'TICKET' | 'UNREGISTERED';
+  type: 'CHAT' | 'TICKET' | 'UNREGISTERED' | 'HANDOFF';
   message: string;
   title?: string;
   description?: string;
@@ -45,21 +45,40 @@ export class GeminiService {
     try {
       const systemPrompt = buildSystemPrompt(condominiumName, residentContext);
 
+      const baseHistory = [
+        {
+          role: 'user',
+          parts: [{ text: 'Instruções do sistema: ' + systemPrompt }],
+        },
+        {
+          role: 'model',
+          parts: [{ text: '{"type":"CHAT","message":"Entendido. Estou pronto para atender os moradores do condomínio seguindo todas as instruções."}' }],
+        },
+      ];
+
+      // Merge provided conversationHistory ensuring strictly alternating roles
+      const safeHistory: any[] = [...baseHistory];
+      for (const msg of conversationHistory) {
+        if (safeHistory[safeHistory.length - 1].role === msg.role) {
+          safeHistory[safeHistory.length - 1].parts[0].text += `\n\n${msg.parts[0].text}`;
+        } else {
+          safeHistory.push(msg);
+        }
+      }
+
+      // startChat requires the history to end with 'model' so that sendMessage ('user') is valid.
+      // If safeHistory ends with 'user', we merge it into the newMessage and pop it from history.
+      let finalMessage = newMessage;
+      if (safeHistory[safeHistory.length - 1].role === 'user') {
+        const lastUser = safeHistory.pop();
+        finalMessage = `${lastUser.parts[0].text}\n\n${newMessage}`;
+      }
+
       const chat = this.model.startChat({
-        history: [
-          {
-            role: 'user',
-            parts: [{ text: 'Instruções do sistema: ' + systemPrompt }],
-          },
-          {
-            role: 'model',
-            parts: [{ text: '{"type":"CHAT","message":"Entendido. Estou pronto para atender os moradores do condomínio seguindo todas as instruções."}' }],
-          },
-          ...conversationHistory,
-        ],
+        history: safeHistory,
       });
 
-      const result = await chat.sendMessage(newMessage);
+      const result = await chat.sendMessage(finalMessage);
       const responseText = result.response.text();
 
       return this.parseResponse(responseText);
