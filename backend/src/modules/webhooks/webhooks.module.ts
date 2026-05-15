@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { WebhooksController } from './webhooks.controller';
 import { WebhooksService } from './webhooks.service';
@@ -10,9 +10,9 @@ import { AuditModule } from '../audit/audit.module';
 @Module({
   imports: [
     ConfigModule,
-    ConversationsModule,
+    forwardRef(() => ConversationsModule),
     ResidentsModule,
-    AiAgentModule,
+    forwardRef(() => AiAgentModule),
     AuditModule,
   ],
   controllers: [WebhooksController],

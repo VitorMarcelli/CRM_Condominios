@@ -15,6 +15,7 @@ import { EscalationRulesModule } from './modules/escalation-rules/escalation-rul
 import { DispatchGroupsModule } from './modules/dispatch-groups/dispatch-groups.module';
 import { BusinessHoursModule } from './modules/business-hours/business-hours.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { EvolutionModule } from './modules/webhooks/providers/evolution.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { CustomRolesModule } from './modules/custom-roles/custom-roles.module';
 import { AiAgentModule } from './modules/ai-agent/ai-agent.module';
@@ -25,6 +26,7 @@ import { AppController } from './app.controller';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    EvolutionModule,
     AuthModule,
     CondominiumsModule,
     BlocksModule,

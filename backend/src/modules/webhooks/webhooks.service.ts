@@ -81,7 +81,12 @@ export class WebhooksService {
       rawPayload: payload,
     });
 
-    // 7. Process with AI Agent
+    // 7. Process with AI Agent if AI is active
+    if (!conversation.isAiActive) {
+      this.logger.log(`Conversation ${conversation.id} is managed by human. Skipping AI.`);
+      return;
+    }
+
     const aiResult = await this.aiAgent.processMessage({
       condominiumId,
       conversationId: conversation.id,
@@ -95,7 +100,7 @@ export class WebhooksService {
 
     // 8. Save AI response as outbound message
     await this.conversations.addMessage(conversation.id, {
-      direction: 'system',
+      direction: 'outbound',
       body: aiResult.responseMessage,
       rawPayload: { generatedBy: 'AiAgentService', action: aiResult.action },
     });
