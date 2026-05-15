@@ -21,6 +21,7 @@ export class ConversationsService {
         include: {
           resident: { select: { id: true, fullName: true, phone: true } },
           condominium: { select: { id: true, name: true } },
+          assignedTo: { select: { id: true, fullName: true, role: true } },
           _count: { select: { messages: true } },
         },
         orderBy: { lastMessageAt: 'desc' },
@@ -106,6 +107,56 @@ export class ConversationsService {
         channel: 'whatsapp',
         externalReference: phone,
         status: 'open',
+        isAiActive: true,
+      },
+    });
+  }
+
+  async takeOver(id: string, userId: string) {
+    const conversation = await this.prisma.conversation.findUnique({ where: { id } });
+    if (!conversation) throw new NotFoundException('Conversation not found');
+
+    const user = await this.prisma.internalUser.findUnique({ where: { id: userId } });
+    
+    // Add an outbound message
+    await this.prisma.message.create({
+      data: {
+        conversationId: id,
+        direction: 'outbound',
+        body: `Atendimento assumido por ${user?.fullName || 'um operador'}.`,
+        rawPayload: { generatedBy: 'system' }
+      }
+    });
+
+    return this.prisma.conversation.update({
+      where: { id },
+      data: {
+        isAiActive: false,
+        assignedToId: userId,
+      },
+      include: { assignedTo: true }
+    });
+  }
+
+  async resumeAi(id: string) {
+    const conversation = await this.prisma.conversation.findUnique({ where: { id } });
+    if (!conversation) throw new NotFoundException('Conversation not found');
+
+    // Add an outbound message
+    await this.prisma.message.create({
+      data: {
+        conversationId: id,
+        direction: 'outbound',
+        body: `Atendimento devolvido para o Assistente de IA.`,
+        rawPayload: { generatedBy: 'system' }
+      }
+    });
+
+    return this.prisma.conversation.update({
+      where: { id },
+      data: {
+        isAiActive: true,
+        assignedToId: null,
       },
     });
   }

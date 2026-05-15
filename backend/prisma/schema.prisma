@@ -142,6 +142,7 @@ model InternalUser {
   condominium         Condominium?      @relation(fields: [condominiumId], references: [id], onDelete: SetNull)
   customRole          CustomRole?       @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   assignedOccurrences Occurrence[]      @relation("AssignedUser")
+  assignedConversations Conversation[]  @relation("AssignedToUser")
   alertRecipients     AlertRecipient[]
   dispatchGroupMembers DispatchGroupMember[]
 
@@ -158,11 +159,14 @@ model Conversation {
   channel           String   @db.VarChar(30)
   externalReference String?  @map("external_reference") @db.VarChar(180)
   status            String   @default("open") @db.VarChar(30)
+  isAiActive        Boolean  @default(true) @map("is_ai_active")
+  assignedToId      String?  @map("assigned_to_id") @db.Uuid
   startedAt         DateTime @default(now()) @map("started_at")
   lastMessageAt     DateTime? @map("last_message_at")
 
   condominium Condominium  @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
   resident    Resident?    @relation(fields: [residentId], references: [id], onDelete: SetNull)
+  assignedTo  InternalUser? @relation("AssignedToUser", fields: [assignedToId], references: [id], onDelete: SetNull)
   messages    Message[]
   occurrences Occurrence[]
 

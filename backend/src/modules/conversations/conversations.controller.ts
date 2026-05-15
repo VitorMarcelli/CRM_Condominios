@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/co
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ConversationsService } from './conversations.service';
+import { EvolutionApiProvider } from '../webhooks/providers/evolution-api.provider';
 import { PermissionsGuard } from '../../common/guards';
 import { CurrentUser, RequirePermission } from '../../common/decorators';
 import { IsString, IsOptional } from 'class-validator';
@@ -20,7 +21,10 @@ class CreateMessageDto {
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
 @ApiBearerAuth()
 export class ConversationsController {
-  constructor(private service: ConversationsService) {}
+  constructor(
+    private service: ConversationsService,
+    private evolution: EvolutionApiProvider,
+  ) {}
 
   @Get()
   @RequirePermission('conversations', 'view')
@@ -51,8 +55,55 @@ export class ConversationsController {
 
   @Post(':id/messages')
   @RequirePermission('conversations', 'respond')
-  @ApiOperation({ summary: 'Send message in conversation' })
-  addMessage(@Param('id') id: string, @Body() dto: CreateMessageDto) {
-    return this.service.addMessage(id, dto);
+  @ApiOperation({ summary: 'Send message in conversation (sends via WhatsApp if outbound)' })
+  async addMessage(@Param('id') id: string, @Body() dto: CreateMessageDto) {
+    // Save message to database
+    const message = await this.service.addMessage(id, dto);
+
+    // If outbound, send via WhatsApp (Evolution API)
+    if (dto.direction === 'outbound' && dto.body) {
+      const conversation = await this.service.findOne(id);
+      const phone = conversation.externalReference || conversation.resident?.phone;
+
+      if (phone) {
+        const result = await this.evolution.sendText(phone, dto.body);
+        if (!result.success) {
+          // Message saved in DB but failed to send via WhatsApp
+          // We still return the message but add a warning
+          return { ...message, whatsappDelivery: 'failed', error: result.error };
+        }
+        return { ...message, whatsappDelivery: 'sent', whatsappMessageId: result.messageId };
+      }
+    }
+
+    return message;
+  }
+
+  @Post(':id/take-over')
+  @RequirePermission('conversations', 'respond')
+  @ApiOperation({ summary: 'Assumir a conversa (bloquear a IA)' })
+  async takeOver(@Param('id') id: string, @CurrentUser() user: any) {
+    const updated = await this.service.takeOver(id, user.sub);
+    const convInfo = await this.service.findOne(id);
+    const phone = convInfo.externalReference || convInfo.resident?.phone;
+    
+    if (phone) {
+      await this.evolution.sendText(phone, `Atendimento assumido por ${updated.assignedTo?.fullName || 'um operador'}.`);
+    }
+    return updated;
+  }
+
+  @Post(':id/resume-ai')
+  @RequirePermission('conversations', 'respond')
+  @ApiOperation({ summary: 'Devolver a conversa para a IA' })
+  async resumeAi(@Param('id') id: string) {
+    const updated = await this.service.resumeAi(id);
+    const convInfo = await this.service.findOne(id);
+    const phone = convInfo.externalReference || convInfo.resident?.phone;
+    
+    if (phone) {
+      await this.evolution.sendText(phone, `Atendimento devolvido para o Assistente de IA.`);
+    }
+    return updated;
   }
 }
