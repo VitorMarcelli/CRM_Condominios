@@ -115,4 +115,31 @@ export class OnboardingService {
       branding: org.settings?.branding || {}
     };
   }
+
+  async getAllOrganizations() {
+    const orgs = await this.prisma.organization.findMany({
+      include: {
+        _count: {
+          select: { condominiums: true, internalUsers: true }
+        },
+        subscriptions: {
+          include: { plan: true },
+          where: { status: 'active' }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return orgs.map(org => ({
+      id: org.id,
+      name: org.name,
+      slug: org.slug,
+      domain: org.domain,
+      status: org.status,
+      createdAt: org.createdAt,
+      condominiumsCount: org._count.condominiums,
+      usersCount: org._count.internalUsers,
+      planName: org.subscriptions[0]?.plan?.name || 'N/A'
+    }));
+  }
 }

@@ -40,7 +40,12 @@ export default function LoginPage() {
       const { accessToken, refreshToken, user } = response.data;
       login(accessToken, refreshToken, user);
       toast.success(`Bem-vindo, ${user.fullName.split(' ')[0]}!`);
-      router.push('/dashboard');
+      
+      if (user.role === 'SUPER_ADMIN') {
+        router.push('/backoffice');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Erro ao realizar login. Verifique suas credenciais.');
     } finally {

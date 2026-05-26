@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: crm-backend
+    env: node
+    region: ohio
+    plan: free # Can be upgraded to starter later
+    buildCommand: |
+      cd backend
+      npm install
+      npx prisma generate
+      npm run build
+    startCommand: |
+      cd backend
+      npx prisma migrate deploy
+      npm run start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # Must be set manually in the Render Dashboard (e.g. Neon.tech URL)
+      - key: JWT_SECRET
+        generateValue: true # Render will automatically generate a secure random secret
+      - key: JWT_EXPIRATION
+        value: "7d"
+      - key: ASAAS_API_URL
+        value: "https://sandbox.asaas.com/api/v3"
+      - key: ASAAS_API_KEY
+        sync: false # Set manually in Dashboard
+      - key: ASAAS_WEBHOOK_SECRET
+        sync: false # Set manually in Dashboard
+      - key: EVOLUTION_API_URL
+        sync: false # Set manually in Dashboard
+      - key: EVOLUTION_API_KEY
+        sync: false # Set manually in Dashboard
