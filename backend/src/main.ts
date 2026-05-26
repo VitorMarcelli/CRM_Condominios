@@ -38,7 +38,8 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
 
-  const port = configService.get<number>('PORT') || configService.get<number>('APP_PORT') || 3001;
+  const portString = configService.get<string>('PORT');
+  const port = portString ? parseInt(portString, 10) : (configService.get<number>('APP_PORT') || 3001);
   await app.listen(port, '0.0.0.0');
   console.log(`🚀 CRM Condomínios API running on port ${port}`);
   console.log(`📚 Swagger docs: http://localhost:${port}/api/docs`);
