@@ -20,12 +20,12 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:migrate": "npx prisma migrate dev",
     "db:push": "npx prisma db push",
-    "db:seed": "npx ts-node prisma/seed.ts",
+    "db:seed": "node dist/prisma/seed.js",
     "db:studio": "npx prisma studio",
     "db:generate": "npx prisma generate"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "node dist/prisma/seed.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
