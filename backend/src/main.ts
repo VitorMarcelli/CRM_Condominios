@@ -22,7 +22,10 @@ async function bootstrap() {
   // CORS — explicit config so preflight (OPTIONS) requests pass
   const corsOrigins = configService.get<string>('CORS_ORIGINS', 'http://localhost:3000');
   app.enableCors({
-    origin: corsOrigins.split(',').map((o) => o.trim()),
+    origin: (origin, callback) => {
+      // Aceita todas as origens dinamicamente (Ideal para URLs dinâmicas do Vercel)
+      callback(null, true);
+    },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     exposedHeaders: ['Authorization'],
