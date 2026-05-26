@@ -59,6 +59,21 @@ async function main() {
   console.log(`✅ Condominium: ${condominium.name}`);
 
   // 3. Create internal users for the condominium
+  const adminCondoHash = await bcrypt.hash('Admin@123', 12);
+  const adminCondo = await prisma.internalUser.create({
+    data: {
+      organizationId: organization.id,
+      condominiumId: condominium.id,
+      fullName: 'Administrador do Condomínio',
+      email: 'admin@belavista.com',
+      phone: '21988880000',
+      role: 'ADMIN',
+      passwordHash: adminCondoHash,
+      status: 'active',
+    },
+  });
+  console.log(`✅ Condo Admin: ${adminCondo.email}`);
+
   const sindicoHash = await bcrypt.hash('Sindico@123', 12);
   const sindico = await prisma.internalUser.create({
     data: {
@@ -254,6 +269,7 @@ async function main() {
   console.log('\n📋 Credentials:');
   console.log(`  Super Admin: ${adminEmail} / ${adminPassword}`);
   console.log(`  Síndico: sindico@belavista.com / Sindico@123`);
+  console.log(`  Admin Condomínio: admin@belavista.com / Admin@123`);
   console.log(`  Zelador: zelador@belavista.com / Zelador@123`);
   console.log(`  Atendente: portaria@belavista.com / Atendente@123`);
 }
