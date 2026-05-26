@@ -20,12 +20,8 @@ async function bootstrap() {
   );
 
   // CORS — explicit config so preflight (OPTIONS) requests pass
-  const corsOrigins = configService.get<string>('CORS_ORIGINS', 'http://localhost:3000');
   app.enableCors({
-    origin: (origin, callback) => {
-      // Aceita todas as origens dinamicamente (Ideal para URLs dinâmicas do Vercel)
-      callback(null, true);
-    },
+    origin: true, // Aceita todas as origens refletindo o header Origin
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'x-organization-id'],
     exposedHeaders: ['Authorization'],
@@ -42,9 +38,9 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
 
-  const port = configService.get<number>('APP_PORT', 3001);
-  await app.listen(port);
-  console.log(`🚀 CRM Condomínios API running on http://localhost:${port}`);
+  const port = configService.get<number>('PORT') || configService.get<number>('APP_PORT') || 3001;
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 CRM Condomínios API running on port ${port}`);
   console.log(`📚 Swagger docs: http://localhost:${port}/api/docs`);
 }
 bootstrap();
