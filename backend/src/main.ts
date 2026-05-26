@@ -27,7 +27,7 @@ async function bootstrap() {
       callback(null, true);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'x-organization-id'],
     exposedHeaders: ['Authorization'],
     credentials: true,
   });
