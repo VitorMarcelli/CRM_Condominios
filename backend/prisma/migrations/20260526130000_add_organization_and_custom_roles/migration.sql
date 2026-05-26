@@ -1,4 +1,4 @@
-﻿-- AlterTable
+-- AlterTable
 ALTER TABLE "condominiums" ADD COLUMN     "organization_id" UUID NOT NULL;
 
 -- AlterTable
