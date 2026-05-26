@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { tenantContext } from '../../common/context/tenant-context';
 
 interface CreateUserInput {
   condominiumId?: string;
@@ -27,8 +28,16 @@ export class InternalUsersService {
 
     const passwordHash = await bcrypt.hash(data.password, 12);
 
+    const ctx = tenantContext.getStore();
+    const orgId = ctx?.organizationId;
+
+    if (!orgId) {
+      throw new BadRequestException('Organization context is missing');
+    }
+
     const user = await this.prisma.internalUser.create({
       data: {
+        organizationId: orgId,
         condominiumId: data.condominiumId,
         customRoleId: data.customRoleId,
         fullName: data.fullName,
@@ -55,8 +64,11 @@ export class InternalUsersService {
 
   async findAll(params: { condominiumId?: string; page?: number; limit?: number }) {
     const { condominiumId, page = 1, limit = 20 } = params;
+    const ctx = tenantContext.getStore();
+    
     const where: Record<string, unknown> = {};
     if (condominiumId) where.condominiumId = condominiumId;
+    if (ctx?.organizationId) where.organizationId = ctx.organizationId;
 
     const [data, total] = await Promise.all([
       this.prisma.internalUser.findMany({
@@ -78,8 +90,12 @@ export class InternalUsersService {
   }
 
   async findOne(id: string) {
+    const ctx = tenantContext.getStore();
+    const where: Record<string, unknown> = { id };
+    if (ctx?.organizationId) where.organizationId = ctx.organizationId;
+
     const user = await this.prisma.internalUser.findUnique({
-      where: { id },
+      where: where as any,
       select: {
         id: true, email: true, fullName: true, phone: true, role: true,
         customRoleId: true, permissions: true, condominiumId: true, status: true, createdAt: true,
@@ -113,6 +129,7 @@ export class InternalUsersService {
   }
 
   async updateStatus(id: string, status: string, actorId: string) {
+    if (id === actorId) throw new ConflictException('Não é possível alterar o próprio status');
     const user = await this.findOne(id);
     await this.prisma.internalUser.update({ where: { id }, data: { status } });
 
@@ -127,5 +144,23 @@ export class InternalUsersService {
     });
 
     return { id, status };
+  }
+
+  async remove(id: string, actorId: string) {
+    if (id === actorId) throw new ConflictException('Não é possível excluir o próprio usuário');
+    const user = await this.findOne(id);
+    
+    await this.prisma.internalUser.delete({ where: { id } });
+
+    await this.audit.log({
+      condominiumId: user.condominiumId,
+      entityType: 'InternalUser',
+      entityId: id,
+      action: 'DELETE',
+      actorType: 'user',
+      actorId,
+    });
+
+    return { success: true };
   }
 }

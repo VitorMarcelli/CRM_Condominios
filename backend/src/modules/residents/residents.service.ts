@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Role } from '../../common/enums';
+import { tenantContext } from '../../common/context/tenant-context';
 
 interface CreateResidentInput {
   condominiumId: string;
@@ -36,6 +37,11 @@ export class ResidentsService {
       where.condominiumId = params.condominiumId;
     }
 
+    const ctx = tenantContext.getStore();
+    if (ctx?.organizationId) {
+      where.condominium = { organizationId: ctx.organizationId };
+    }
+
     const [data, total] = await Promise.all([
       this.prisma.resident.findMany({
         where,
@@ -54,8 +60,15 @@ export class ResidentsService {
   }
 
   async findOne(id: string) {
-    const resident = await this.prisma.resident.findUnique({
-      where: { id },
+    const ctx = tenantContext.getStore();
+    const where: Record<string, unknown> = { id };
+    
+    if (ctx?.organizationId) {
+      where.condominium = { organizationId: ctx.organizationId };
+    }
+
+    const resident = await this.prisma.resident.findFirst({
+      where: where as any,
       include: {
         unit: { include: { block: true } },
         condominium: { select: { id: true, name: true } },
@@ -79,6 +92,10 @@ export class ResidentsService {
 
   async search(params: { name?: string; phone?: string; unit?: string; condominiumId?: string }) {
     const where: Record<string, unknown> = {};
+    const ctx = tenantContext.getStore();
+    if (ctx?.organizationId) {
+      where.condominium = { organizationId: ctx.organizationId };
+    }
     if (params.condominiumId) where.condominiumId = params.condominiumId;
     if (params.name) where.fullName = { contains: params.name, mode: 'insensitive' };
     if (params.phone) where.phone = { contains: params.phone };
@@ -101,11 +118,18 @@ export class ResidentsService {
       searchPhone = phone.substring(2);
     }
     
+    const ctx = tenantContext.getStore();
+    const where: Record<string, unknown> = { 
+      phone: { endsWith: searchPhone },
+      status: 'active' 
+    };
+    
+    if (ctx?.organizationId) {
+      where.condominium = { organizationId: ctx.organizationId };
+    }
+    
     return this.prisma.resident.findFirst({
-      where: { 
-        phone: { endsWith: searchPhone },
-        status: 'active' 
-      },
+      where: where as any,
       include: { condominium: true, unit: true },
     });
   }

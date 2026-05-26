@@ -6,10 +6,18 @@ export const api = axios.create({
 
 // Request interceptor to add the token
 api.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const isBrowser = typeof window !== 'undefined';
+  const token = isBrowser ? localStorage.getItem('access_token') : null;
+  const orgId = isBrowser ? localStorage.getItem('organization_id') : null;
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
+  if (orgId) {
+    config.headers['x-organization-id'] = orgId;
+  }
+  
   return config;
 });
 

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Plus, Search, Filter, ShieldCheck, Mail, Phone, Loader2, UserX, Pencil, Power } from 'lucide-react';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 
 const PERMISSION_KEYS = [
   { key: 'occurrences', label: 'Ocorrências' },
@@ -22,16 +22,16 @@ const PERMISSION_KEYS = [
   { key: 'escalation_rules', label: 'Regras de Escalação' },
 ];
 
-const container = {
+const container: Variants = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.05 } }
 };
 
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 20, filter: 'blur(5px)' },
   show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { type: 'spring', stiffness: 300, damping: 24 } },
   exit: { opacity: 0, scale: 0.95, transition: { duration: 0.2 } }
-};
+} as Variants;
 
 const defaultPerms = () => PERMISSION_KEYS.reduce((acc, p) => ({ ...acc, [p.key]: true }), {} as Record<string, boolean>);
 
@@ -73,7 +73,7 @@ export default function StaffPage() {
 
   useEffect(() => {
     fetchStaff();
-    if (user?.condominiumId) setFormData(p => ({ ...p, condominiumId: user.condominiumId }));
+    if (user?.condominiumId) setFormData(p => ({ ...p, condominiumId: user.condominiumId || '' }));
   }, [user]);
 
   const fetchCondominiums = () => {
@@ -158,6 +158,17 @@ export default function StaffPage() {
       toast.success(newStatus === 'active' ? 'Usuário ativado.' : 'Usuário desativado.');
       fetchStaff();
     } catch { toast.error('Erro ao alterar status.'); }
+  };
+
+  const handleDelete = async (person: any) => {
+    if (!confirm(`Tem certeza que deseja excluir permanentemente o funcionário ${person.fullName}?`)) return;
+    try {
+      await api.delete(`/internal-users/${person.id}`);
+      toast.success('Funcionário excluído com sucesso.');
+      fetchStaff();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Erro ao excluir funcionário.');
+    }
   };
 
   const filteredStaff = staff.filter(s =>
@@ -390,14 +401,22 @@ export default function StaffPage() {
                     {/* Action buttons */}
                     {isAdmin && (
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {person.id !== user?.id && (
+                          <button onClick={() => handleDelete(person)} title="Excluir"
+                            className="p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10 text-slate-400 hover:text-red-500 transition-colors">
+                            <UserX className="w-4 h-4" />
+                          </button>
+                        )}
                         <button onClick={() => openEdit(person)} title="Editar"
                           className="p-2 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-400 hover:text-blue-600 transition-colors">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button onClick={() => toggleStatus(person)} title={person.status === 'active' ? 'Desativar' : 'Ativar'}
-                          className={`p-2 rounded-xl transition-colors ${person.status === 'active' ? 'hover:bg-red-50 dark:hover:bg-red-500/10 text-slate-400 hover:text-red-500' : 'hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-400 hover:text-emerald-500'}`}>
-                          <Power className="w-4 h-4" />
-                        </button>
+                        {person.id !== user?.id && (
+                          <button onClick={() => toggleStatus(person)} title={person.status === 'active' ? 'Desativar' : 'Ativar'}
+                            className={`p-2 rounded-xl transition-colors ${person.status === 'active' ? 'hover:bg-red-50 dark:hover:bg-red-500/10 text-slate-400 hover:text-red-500' : 'hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-400 hover:text-emerald-500'}`}>
+                            <Power className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

@@ -6,88 +6,93 @@ import { motion } from 'framer-motion';
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-white dark:bg-[#0A0A0B]">
-      {/* Left Pane - Premium Branding */}
-      <div className="hidden lg:flex flex-col justify-between relative overflow-hidden bg-[#0A0A0B] text-white p-16">
-        {/* Abstract Background Elements */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
-          <div className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] rounded-full bg-blue-600/20 blur-[120px]" />
-          <div className="absolute top-[40%] -right-[20%] w-[60%] h-[60%] rounded-full bg-indigo-600/20 blur-[120px]" />
-          <div className="absolute -bottom-[20%] left-[20%] w-[80%] h-[80%] rounded-full bg-violet-600/10 blur-[120px]" />
+    <div className="min-h-screen flex bg-[#0B1121] text-slate-200 font-sans selection:bg-blue-500/30">
+      
+      {/* Left Pane - Scenic / 3D Vibe */}
+      <div className="hidden lg:flex flex-col relative w-1/2 overflow-hidden bg-[#0B1121]">
+        
+        {/* Abstract Scenic Background */}
+        <div className="absolute inset-0 z-0">
+          {/* Deep gradient background */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0F172A] to-[#0B1121]" />
           
-          {/* Grid pattern overlay */}
-          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_70%,transparent_100%)]"></div>
+          {/* "Mountain/3D" fake effect using polygons and gradients */}
+          <div className="absolute bottom-0 left-0 w-full h-[60%] bg-gradient-to-t from-[#060B14] to-transparent z-10" />
+          
+          <svg className="absolute bottom-0 w-full h-[70%] opacity-40 mix-blend-screen" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <polygon fill="url(#grad1)" points="0,100 0,60 20,40 40,70 60,30 80,60 100,20 100,100" />
+            <polygon fill="url(#grad2)" points="0,100 0,80 30,50 50,80 70,40 100,60 100,100" />
+            <defs>
+              <linearGradient id="grad1" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.2" />
+                <stop offset="100%" stopColor="#0B1121" stopOpacity="1" />
+              </linearGradient>
+              <linearGradient id="grad2" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#10B981" stopOpacity="0.1" />
+                <stop offset="100%" stopColor="#0B1121" stopOpacity="1" />
+              </linearGradient>
+            </defs>
+          </svg>
+
+          {/* Stars / Particles */}
+          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay"></div>
+          <div className="absolute top-[20%] left-[30%] w-1 h-1 bg-white rounded-full opacity-50 blur-[1px]"></div>
+          <div className="absolute top-[40%] left-[70%] w-1 h-1 bg-white rounded-full opacity-30 blur-[1px]"></div>
+          <div className="absolute top-[10%] left-[60%] w-1.5 h-1.5 bg-blue-400 rounded-full opacity-60 blur-[2px]"></div>
+          <div className="absolute top-[35%] left-[15%] w-1 h-1 bg-white rounded-full opacity-40"></div>
+          
+          {/* Beams of light */}
+          <div className="absolute -top-[10%] left-[20%] w-[1px] h-[40%] bg-gradient-to-b from-transparent via-blue-500/30 to-transparent"></div>
+          <div className="absolute top-[10%] left-[80%] w-[1px] h-[50%] bg-gradient-to-b from-transparent via-emerald-500/20 to-transparent"></div>
         </div>
 
-        <div className="relative z-10 flex flex-col h-full justify-between">
+        <div className="relative z-20 flex flex-col h-full justify-between p-12 lg:p-16">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           >
-            <div className="flex items-center gap-3 mb-32">
-              <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-3 rounded-2xl shadow-lg shadow-blue-500/20 ring-1 ring-white/10">
-                <Building2 className="w-8 h-8 text-white" />
+            {/* Logo area */}
+            <div className="flex items-center gap-3 mb-24">
+              <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <Building2 className="w-5 h-5 text-white" />
               </div>
-              <span className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">
+              <span className="text-xl font-bold tracking-wide text-white">
                 Condominium CRM
               </span>
             </div>
 
-            <div className="max-w-xl space-y-8">
-              <h1 className="text-5xl lg:text-6xl font-black tracking-tighter leading-[1.1] text-white">
-                Gestão <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">inteligente</span> para condomínios do futuro.
+            {/* Typography */}
+            <div className="space-y-4">
+              <h1 className="text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
+                Sua jornada de gestão <br />
+                <span className="text-blue-500">começa aqui.</span>
               </h1>
-              <p className="text-xl text-slate-400 leading-relaxed font-medium">
-                Centralize ocorrências, atendimento, controle de acesso e comunicação com moradores em uma plataforma de altíssimo padrão.
+              <p className="text-lg text-slate-400 font-medium max-w-md leading-relaxed mt-4">
+                Gerencie ocorrências, automatize tarefas e ganhe controle total em tempo real.
+                Transforme a rotina do seu condomínio com tecnologia de ponta.
               </p>
-
-              <div className="pt-8 flex flex-col gap-6">
-                {[
-                  { icon: Zap, title: "Automação Inteligente", desc: "Fluxos de trabalho otimizados" },
-                  { icon: ShieldCheck, title: "Segurança Avançada", desc: "Controle de acessos granular" },
-                  { icon: Users, title: "Gestão Unificada", desc: "Síndicos, moradores e portaria conectados" }
-                ].map((feature, i) => (
-                  <motion.div 
-                    key={i}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.5, delay: 0.4 + (i * 0.1) }}
-                    className="flex items-center gap-4 group"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-blue-500/10 group-hover:border-blue-500/30 transition-colors">
-                      <feature.icon className="w-6 h-6 text-slate-300 group-hover:text-blue-400 transition-colors" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-white">{feature.title}</h3>
-                      <p className="text-sm text-slate-400">{feature.desc}</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
             </div>
-          </motion.div>
-          
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1, duration: 1 }}
-            className="text-sm text-slate-500 font-medium"
-          >
-            &copy; {new Date().getFullYear()} Condominium CRM. Todos os direitos reservados.
           </motion.div>
         </div>
       </div>
 
-      {/* Right Pane - Content */}
-      <div className="flex items-center justify-center p-8 lg:p-12 relative bg-slate-50 dark:bg-[#0A0A0B]">
+      {/* Right Pane - Form Content */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 relative bg-[#0F172A]">
+        {/* Subtle separator shadow if needed */}
+        <div className="hidden lg:block absolute left-0 top-0 bottom-0 w-[1px] bg-gradient-to-b from-transparent via-white/5 to-transparent"></div>
+        
         <div className="w-full max-w-[440px] relative z-10">
           {children}
         </div>
-        {/* Subtle decorative blob on right side */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-100/50 dark:bg-blue-900/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/3 pointer-events-none" />
       </div>
+      
+      {/* Global styles for animations if needed */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes shimmer {
+          100% { background-position: 1rem 0; }
+        }
+      `}} />
     </div>
   );
 }

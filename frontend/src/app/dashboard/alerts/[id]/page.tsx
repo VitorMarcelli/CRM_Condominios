@@ -100,7 +100,7 @@ export default function AlertDetailPage() {
                 <div>
                   <span className="text-sm font-medium text-slate-500">Link</span>
                   <p className="mt-1">
-                    <Link href={`/dashboard/occurrences/${alert.occurrenceId}/edit`} className="text-blue-600 hover:underline inline-flex items-center">
+                    <Link href={`/dashboard/occurrences?occurrenceId=${alert.occurrenceId}`} className="text-blue-600 hover:underline inline-flex items-center">
                       Ir para ocorrência <ArrowLeft className="w-3 h-3 ml-1 rotate-135" />
                     </Link>
                   </p>

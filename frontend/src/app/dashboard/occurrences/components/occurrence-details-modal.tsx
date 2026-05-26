@@ -83,12 +83,18 @@ export function OccurrenceDetailsModal({ isOpen, onClose, occurrenceId, onUpdate
   };
 
   const handleResolve = async () => {
+    if (!occurrence?.assignedUser && !occurrence?.assignedUserId) {
+      alert('⚠️ Atenção: Não é possível resolver uma ocorrência sem um responsável atribuído. Por favor, atribua a ocorrência a alguém primeiro.');
+      return;
+    }
+
     try {
       setIsUpdating(true);
       await api.patch(`/occurrences/${occurrenceId}/status`, { status: 'resolved' });
       await fetchDetails();
       if (onUpdated) onUpdated();
-    } catch (error) {
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Erro ao resolver ocorrência');
       console.error(error);
     } finally {
       setIsUpdating(false);
@@ -99,6 +105,20 @@ export function OccurrenceDetailsModal({ isOpen, onClose, occurrenceId, onUpdate
     try {
       setIsUpdating(true);
       await api.patch(`/occurrences/${occurrenceId}/assign`, { assignedUserId: userId });
+
+      // Auto-acknowledge pending alerts
+      if (occurrence?.alerts?.length > 0 && userId) {
+        for (const alert of occurrence.alerts) {
+          if (alert.status === 'triggered' || alert.status === 'pending') {
+             try {
+               await api.post(`/alerts/${alert.id}/acknowledge`);
+             } catch (e) {
+               console.error('Failed to auto-acknowledge alert:', e);
+             }
+          }
+        }
+      }
+
       await fetchDetails();
       if (onUpdated) onUpdated();
     } catch (error) {

@@ -16,11 +16,21 @@ export class CondominiumGuard implements CanActivate {
       return true;
     }
 
-    // Extract condominiumId from route params, query, or body
+    // Extract condominiumId and organizationId from route params, query, or body
     const condominiumId =
       request.params?.condominiumId ||
       request.query?.condominiumId ||
       request.body?.condominiumId;
+      
+    const organizationId =
+      request.params?.organizationId ||
+      request.query?.organizationId ||
+      request.body?.organizationId;
+
+    // User must belong to the requested organization
+    if (organizationId && user.organizationId && user.organizationId !== organizationId) {
+      throw new ForbiddenException('Access denied: different organization');
+    }
 
     // If no condominiumId in request, allow (service layer will filter)
     if (!condominiumId) {

@@ -27,9 +27,27 @@ async function main() {
   });
   console.log(`✅ Super Admin: ${superAdmin.email}`);
 
+  // 1.5. Create Default Organization
+  const organization = await prisma.organization.create({
+    data: {
+      name: 'Administradora Demo',
+      slug: 'demo',
+      domain: 'demo.localhost',
+      status: 'active',
+      settings: {
+        create: {
+          timezone: 'America/Sao_Paulo',
+          locale: 'pt-BR'
+        }
+      }
+    }
+  });
+  console.log(`✅ Organization: ${organization.name}`);
+
   // 2. Create sample condominium
   const condominium = await prisma.condominium.create({
     data: {
+      organizationId: organization.id,
       name: 'Residencial Bela Vista',
       document: '12.345.678/0001-90',
       address: 'Rua das Flores, 123 - Centro',
@@ -44,6 +62,7 @@ async function main() {
   const sindicoHash = await bcrypt.hash('Sindico@123', 12);
   const sindico = await prisma.internalUser.create({
     data: {
+      organizationId: organization.id,
       condominiumId: condominium.id,
       fullName: 'Carlos Silva',
       email: 'sindico@belavista.com',
@@ -57,6 +76,7 @@ async function main() {
   const zeladorHash = await bcrypt.hash('Zelador@123', 12);
   const zelador = await prisma.internalUser.create({
     data: {
+      organizationId: organization.id,
       condominiumId: condominium.id,
       fullName: 'José Santos',
       email: 'zelador@belavista.com',
@@ -70,6 +90,7 @@ async function main() {
   const atendenteHash = await bcrypt.hash('Atendente@123', 12);
   const atendente = await prisma.internalUser.create({
     data: {
+      organizationId: organization.id,
       condominiumId: condominium.id,
       fullName: 'Ana Oliveira',
       email: 'portaria@belavista.com',

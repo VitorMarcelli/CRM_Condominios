@@ -4,6 +4,8 @@ import { ResidentsService } from '../residents/residents.service';
 import { AiAgentService } from '../ai-agent/ai-agent.service';
 import { AuditService } from '../audit/audit.service';
 import { EvolutionApiProvider } from './providers/evolution-api.provider';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { tenantContext } from '../../common/context/tenant-context';
 
 @Injectable()
 export class WebhooksService {
@@ -15,6 +17,7 @@ export class WebhooksService {
     private aiAgent: AiAgentService,
     private audit: AuditService,
     private evolution: EvolutionApiProvider,
+    private prisma: PrismaService,
   ) {}
 
   async handleEvolutionWebhook(payload: any, headerCondominiumId?: string) {
@@ -27,7 +30,21 @@ export class WebhooksService {
       return { status: 'ignored', reason: 'not_a_user_message' };
     }
 
-    const { phone, name, body, messageId, messageType } = parsed;
+    const { phone, name, body, messageId, messageType, instanceName } = parsed;
+
+    // 1.5 Determine Organization from instanceName
+    let organizationId: string | undefined = undefined;
+    if (instanceName) {
+      const orgSettings = await this.prisma.organizationSettings.findFirst({
+        where: { whatsappInstanceId: instanceName }
+      });
+      if (orgSettings) {
+        organizationId = orgSettings.organizationId;
+      }
+    }
+
+    // Wrap the rest of the execution in the tenant context
+    return tenantContext.run({ organizationId }, async () => {
 
     // 2. Skip non-text messages for now (images, audio, etc.)
     if (messageType !== 'text' || !body || body.trim().length === 0) {
@@ -37,6 +54,7 @@ export class WebhooksService {
         await this.evolution.sendText(
           phone,
           'Recebi seu arquivo! 📎 No momento, consigo processar apenas mensagens de texto. Por favor, descreva sua solicitação por escrito.',
+          instanceName
         );
       }
       return { status: 'ignored', reason: 'non_text_message' };
@@ -51,6 +69,7 @@ export class WebhooksService {
       await this.evolution.sendText(
         phone,
         'Olá! Não consegui identificar seu número em nosso sistema. Por favor, entre em contato com a administração do seu condomínio para realizar o cadastro.',
+        instanceName
       );
       return { status: 'ignored', reason: 'unknown_condominium' };
     }
@@ -127,5 +146,6 @@ export class WebhooksService {
       aiAction: aiResult.action,
       occurrenceCreated: !!aiResult.occurrenceId,
     };
+    }); // end of tenantContext.run
   }
 }

@@ -202,7 +202,7 @@ export class AiAgentService {
         },
       });
 
-      // 2. Trigger alert
+      // 2. Trigger alert OR Notify Síndico
       let alertId: string | undefined;
       if (response.priority === 'critical' || response.priority === 'high') {
         const alert = await this.alerts.trigger({
@@ -212,17 +212,17 @@ export class AiAgentService {
           urgencyLevel: response.priority,
         });
         alertId = alert.id;
+      } else {
+        // 3. Notify Síndico via WhatsApp ONLY for normal tickets
+        await this.notifier.notifySindicoNewTicket({
+          condominiumId: context.condominiumId,
+          occurrenceTitle: response.title || 'Chamado via WhatsApp',
+          occurrenceDescription: response.description || response.message,
+          priority: response.priority || 'medium',
+          residentName: context.senderName,
+          residentPhone: context.phone,
+        });
       }
-
-      // 3. Notify Síndico via WhatsApp
-      await this.notifier.notifySindicoNewTicket({
-        condominiumId: context.condominiumId,
-        occurrenceTitle: response.title || 'Chamado via WhatsApp',
-        occurrenceDescription: response.description || response.message,
-        priority: response.priority || 'medium',
-        residentName: context.senderName,
-        residentPhone: context.phone,
-      });
 
       // 4. Send confirmation to resident
       await this.evolution.sendText(context.phone, response.message);

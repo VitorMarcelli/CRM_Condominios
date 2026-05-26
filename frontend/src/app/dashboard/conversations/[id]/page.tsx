@@ -8,6 +8,8 @@ import { Loader2, ArrowLeft, Send, Phone, MoreVertical, Smile, Paperclip, CheckC
 import Link from 'next/link';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useConversationsContext } from '../layout';
+import { useAuthStore } from '@/store/auth';
 
 function safeDate(val: any): Date | null {
   if (!val) return null;
@@ -44,6 +46,9 @@ function getTimestamp(msg: any): any {
 export default function ConversationDetailPage() {
   const router = useRouter();
   const { id } = useParams();
+  const { refreshConversations } = useConversationsContext();
+  const { user } = useAuthStore();
+  const canDelete = ['SUPER_ADMIN', 'ADMIN', 'SINDICO', 'ATENDENTE'].includes(user?.role || '');
 
   const [isLoading, setIsLoading] = useState(true);
   const [conversation, setConversation] = useState<any>(null);
@@ -71,8 +76,18 @@ export default function ConversationDetailPage() {
       // Only scroll to bottom if new messages arrived
       setMessages(prev => {
         const newMsgs = msgRes.data.data || [];
-        if (prev.length !== newMsgs.length) {
-          setTimeout(scrollToBottom, 50);
+        if (prev.length !== newMsgs.length && prev.length > 0) {
+          setTimeout(() => {
+            scrollToBottom();
+            api.post(`/conversations/${id}/read`).then(() => refreshConversations()).catch(console.error);
+          }, 50);
+        } else if (prev.length === 0 && newMsgs.length > 0) {
+          setTimeout(() => {
+            scrollToBottom();
+            if (convRes.data?.unreadCount > 0) {
+              api.post(`/conversations/${id}/read`).then(() => refreshConversations()).catch(console.error);
+            }
+          }, 50);
         }
         return newMsgs;
       });
@@ -97,6 +112,7 @@ export default function ConversationDetailPage() {
     try {
       await api.post(`/conversations/${id}/take-over`);
       await fetchConversation();
+      refreshConversations();
     } catch (error) {
       console.error('Failed to take over', error);
     }
@@ -106,15 +122,39 @@ export default function ConversationDetailPage() {
     try {
       await api.post(`/conversations/${id}/resume-ai`);
       await fetchConversation();
+      refreshConversations();
     } catch (error) {
       console.error('Failed to resume AI', error);
     }
   };
 
+  const handleClose = async () => {
+    try {
+      await api.post(`/conversations/${id}/close`);
+      await fetchConversation();
+      refreshConversations();
+    } catch (error) {
+      console.error('Failed to close conversation', error);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Tem certeza que deseja excluir esta conversa permanentemente?')) return;
+    try {
+      await api.delete(`/conversations/${id}`);
+      refreshConversations();
+      router.push('/dashboard/conversations');
+    } catch (error) {
+      console.error('Failed to delete conversation', error);
+      alert('Erro ao excluir a conversa.');
+    }
+  };
+
   useEffect(() => {
-    if (!isLoading && messages.length > 0) scrollToBottom();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
+    if (!isLoading && messages.length > 0) {
+      setTimeout(scrollToBottom, 50);
+    }
+  }, [messages.length, isLoading, scrollToBottom]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,6 +172,8 @@ export default function ConversationDetailPage() {
 
       const msgRes = await api.get(`/conversations/${id}/messages`);
       setMessages(msgRes.data.data || []);
+      refreshConversations();
+      setTimeout(scrollToBottom, 50);
     } catch (error) {
       console.error('Failed to send message', error);
     } finally {
@@ -163,7 +205,7 @@ export default function ConversationDetailPage() {
 
   if (isLoading || !conversation) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 gap-4">
+      <div className="flex w-full h-full flex-col items-center justify-center gap-4 bg-slate-50/50 dark:bg-[#080808]">
         <div className="w-10 h-10 border-[3px] border-slate-200 border-t-blue-600 dark:border-slate-800 dark:border-t-blue-500 rounded-full animate-spin" />
         <span className="text-xs font-bold text-slate-400">Carregando conversa...</span>
       </div>
@@ -174,10 +216,8 @@ export default function ConversationDetailPage() {
   const initials = contactName.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
 
   return (
-    <div className="w-full max-w-5xl mx-auto font-sans">
-      {/* WRAPPER CARD */}
-      <div className="bg-white dark:bg-[#0d0d0d] rounded-[2rem] shadow-[0_8px_40px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_40px_rgb(0,0,0,0.3)] border border-slate-100 dark:border-white/5 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 6rem)' }}>
-        
+    <div className="flex flex-col w-full h-full overflow-hidden bg-white dark:bg-[#0d0d0d]">
+      
         {/* CHAT HEADER */}
         <div className="shrink-0 flex items-center justify-between px-5 py-3.5 bg-white dark:bg-[#0d0d0d] border-b border-slate-100 dark:border-white/5">
           <div className="flex items-center gap-3">
@@ -216,6 +256,16 @@ export default function ConversationDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {canDelete && (
+              <Button onClick={handleDelete} variant="ghost" size="sm" className="h-8 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 mr-1" title="Excluir Atendimento">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+              </Button>
+            )}
+            {conversation.status !== 'closed' && (
+              <Button onClick={handleClose} variant="outline" size="sm" className="h-8 rounded-xl border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 font-semibold mr-1">
+                Encerrar Atendimento
+              </Button>
+            )}
             {conversation.isAiActive ? (
               <Button onClick={handleTakeOver} size="sm" className="h-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm font-semibold">
                 Assumir Conversa
@@ -374,7 +424,6 @@ export default function ConversationDetailPage() {
             </form>
           )}
         </div>
-      </div>
 
       {/* ANIMATION KEYFRAMES */}
       <style jsx>{`

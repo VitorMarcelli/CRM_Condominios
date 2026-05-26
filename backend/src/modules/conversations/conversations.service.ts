@@ -54,12 +54,15 @@ export class ConversationsService {
     const [data, total] = await Promise.all([
       this.prisma.message.findMany({
         where: { conversationId },
-        orderBy: { sentAt: 'asc' },
+        orderBy: { sentAt: 'desc' },
         take: limit,
         skip: (page - 1) * limit,
       }),
       this.prisma.message.count({ where: { conversationId } }),
     ]);
+
+    // Reverse so the oldest of this page is first, for UI chronological order
+    data.reverse();
 
     return { data, total, page, limit };
   }
@@ -80,25 +83,49 @@ export class ConversationsService {
       data: { conversationId, ...data },
     });
 
+    const updateData: any = { lastMessageAt: new Date() };
+    if (data.direction === 'inbound') {
+      updateData.unreadCount = { increment: 1 };
+    }
+
     await this.prisma.conversation.update({
       where: { id: conversationId },
-      data: { lastMessageAt: new Date() },
+      data: updateData,
     });
 
     return message;
+  }
+
+  async markAsRead(id: string) {
+    return this.prisma.conversation.update({
+      where: { id },
+      data: { unreadCount: 0 },
+    });
   }
 
   async createOrFindConversation(condominiumId: string, phone: string, residentId?: string) {
     const existing = await this.prisma.conversation.findFirst({
       where: {
         condominiumId,
-        status: 'open',
+        externalReference: phone,
         ...(residentId ? { residentId } : {}),
       },
       orderBy: { lastMessageAt: 'desc' },
     });
 
-    if (existing) return existing;
+    if (existing) {
+      if (existing.status === 'closed') {
+        return this.prisma.conversation.update({
+          where: { id: existing.id },
+          data: {
+            status: 'open',
+            isAiActive: true,
+            assignedToId: null,
+          },
+        });
+      }
+      return existing;
+    }
 
     return this.prisma.conversation.create({
       data: {
@@ -138,6 +165,15 @@ export class ConversationsService {
     });
   }
 
+  async deleteConversation(id: string) {
+    const conversation = await this.prisma.conversation.findUnique({ where: { id } });
+    if (!conversation) throw new NotFoundException('Conversation not found');
+
+    return this.prisma.conversation.delete({
+      where: { id },
+    });
+  }
+
   async resumeAi(id: string) {
     const conversation = await this.prisma.conversation.findUnique({ where: { id } });
     if (!conversation) throw new NotFoundException('Conversation not found');
@@ -146,7 +182,7 @@ export class ConversationsService {
     await this.prisma.message.create({
       data: {
         conversationId: id,
-        direction: 'outbound',
+        direction: 'system',
         body: `Atendimento devolvido para o Assistente de IA.`,
         rawPayload: { generatedBy: 'system' }
       }
@@ -159,5 +195,33 @@ export class ConversationsService {
         assignedToId: null,
       },
     });
+  }
+
+  async closeConversation(id: string, userId: string) {
+    const conversation = await this.prisma.conversation.findUnique({ where: { id } });
+    if (!conversation) throw new NotFoundException('Conversation not found');
+
+    const user = await this.prisma.internalUser.findUnique({ where: { id: userId } });
+    
+    // Add a system message indicating it was closed
+    await this.prisma.message.create({
+      data: {
+        conversationId: id,
+        direction: 'system',
+        body: `Atendimento encerrado por ${user?.fullName || 'um operador'}.`,
+        rawPayload: { generatedBy: 'system' }
+      }
+    });
+
+    const updated = await this.prisma.conversation.update({
+      where: { id },
+      data: {
+        status: 'closed',
+        isAiActive: true, // Reset to AI for future messages
+        assignedToId: null,
+      },
+    });
+
+    return { ...updated, operatorName: user?.fullName || 'um operador' };
   }
 }

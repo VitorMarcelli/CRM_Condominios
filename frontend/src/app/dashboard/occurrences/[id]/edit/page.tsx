@@ -11,17 +11,17 @@ import { Loader2, ArrowLeft, Clock, MessageSquareText, Save, Info, User } from '
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { motion } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
 
-const container = {
+const container: Variants = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.1 } }
 };
 
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 250, damping: 25 } }
-};
+} as Variants;
 
 export default function EditOccurrencePage() {
   const router = useRouter();
@@ -30,19 +30,28 @@ export default function EditOccurrencePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [occurrence, setOccurrence] = useState<any>(null);
+  const [usersList, setUsersList] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     status: '',
     priority: '',
+    assignedUserId: '',
   });
 
   useEffect(() => {
-    const fetchOccurrence = async () => {
+    const fetchData = async () => {
       try {
-        const res = await api.get(`/occurrences/${id}`);
-        setOccurrence(res.data);
+        const [occRes, usersRes] = await Promise.all([
+          api.get(`/occurrences/${id}`),
+          api.get('/internal-users')
+        ]);
+        
+        setOccurrence(occRes.data);
+        setUsersList(usersRes.data.data || usersRes.data || []);
+        
         setFormData({
-          status: res.data.status,
-          priority: res.data.priority,
+          status: occRes.data.status,
+          priority: occRes.data.priority,
+          assignedUserId: occRes.data.assignedUserId || 'none',
         });
       } catch (error) {
         toast.error('Erro ao carregar dados da ocorrência.');
@@ -53,7 +62,7 @@ export default function EditOccurrencePage() {
     };
 
     if (id) {
-      fetchOccurrence();
+      fetchData();
     }
   }, [id, router]);
 
@@ -66,7 +75,34 @@ export default function EditOccurrencePage() {
 
     try {
       setIsSubmitting(true);
-      await api.put(`/occurrences/${id}`, formData);
+      
+      const payload: any = {
+        status: formData.status,
+        priority: formData.priority,
+        assignedUserId: formData.assignedUserId === 'none' ? null : formData.assignedUserId,
+      };
+
+      if (payload.status === 'resolved' && !payload.assignedUserId) {
+        toast.error('Não é possível resolver uma ocorrência sem um responsável atribuído.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      await api.put(`/occurrences/${id}`, payload);
+
+      // Auto-acknowledge pending alerts if assigned to someone
+      if (payload.assignedUserId && occurrence?.alerts?.length > 0) {
+        for (const alert of occurrence.alerts) {
+          if (alert.status === 'triggered' || alert.status === 'pending') {
+             try {
+               await api.post(`/alerts/${alert.id}/acknowledge`);
+             } catch (e) {
+               console.error('Failed to auto-acknowledge alert:', e);
+             }
+          }
+        }
+      }
+
       toast.success('Ocorrência atualizada com sucesso!');
       
       const res = await api.get(`/occurrences/${id}`);
@@ -151,7 +187,7 @@ export default function EditOccurrencePage() {
               <form onSubmit={handleSubmit} className="border-t border-slate-100 dark:border-slate-800 pt-8 mt-8">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Controle Operacional</h3>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   <div className="space-y-3">
                     <Label htmlFor="status" className="font-bold text-slate-600 dark:text-slate-400">Status da Ocorrência</Label>
                     <Select value={formData.status} onValueChange={(val) => handleSelectChange('status', val)}>
@@ -178,6 +214,21 @@ export default function EditOccurrencePage() {
                         <SelectItem value="medium" className="font-medium rounded-xl text-blue-600 dark:text-blue-400">Média (Atenção)</SelectItem>
                         <SelectItem value="high" className="font-medium rounded-xl text-orange-500">Alta (Urgente)</SelectItem>
                         <SelectItem value="critical" className="font-medium rounded-xl text-red-500">Crítica (Emergência)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <Label htmlFor="assignedUserId" className="font-bold text-slate-600 dark:text-slate-400">Responsável</Label>
+                    <Select value={formData.assignedUserId} onValueChange={(val) => handleSelectChange('assignedUserId', val)}>
+                      <SelectTrigger className="h-14 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none font-semibold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500">
+                        <SelectValue placeholder="Atribuir a..." />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-2xl border-slate-100 dark:border-slate-800 shadow-xl">
+                        <SelectItem value="none" className="font-medium rounded-xl text-slate-400">Não atribuído</SelectItem>
+                        {usersList.map((u) => (
+                          <SelectItem key={u.id} value={u.id} className="font-medium rounded-xl">{u.fullName}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

@@ -14,11 +14,101 @@ datasource db {
 }
 
 // ============================================
+// 0. SaaS Organization & Billing
+// ============================================
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(180)
+  slug      String   @unique @db.VarChar(120)
+  domain    String?  @unique @db.VarChar(120)
+  status    String   @default("active") @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  settings      OrganizationSettings?
+  subscriptions Subscription[]
+  invoices      Invoice[]
+  condominiums  Condominium[]
+  internalUsers InternalUser[]
+  customRoles   CustomRole[]
+
+  @@map("organizations")
+}
+
+model OrganizationSettings {
+  id                 String   @id @default(uuid()) @db.Uuid
+  organizationId     String   @unique @map("organization_id") @db.Uuid
+  whatsappInstanceId String?  @map("whatsapp_instance_id") @db.VarChar(120)
+  geminiApiKey       String?  @map("gemini_api_key") @db.VarChar(180)
+  branding           Json?    @default("{}")
+  timezone           String   @default("America/Sao_Paulo") @db.VarChar(50)
+  locale             String   @default("pt-BR") @db.VarChar(10)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("organization_settings")
+}
+
+model Plan {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(120)
+  features     Json?    @default("{}")
+  limits       Json?    @default("{}")
+  price        Float
+  billingCycle String   @map("billing_cycle") @db.VarChar(20)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  planId         String    @map("plan_id") @db.Uuid
+  asaasId        String?   @unique @map("asaas_id") @db.VarChar(120)
+  status         String    @db.VarChar(30)
+  startDate      DateTime  @map("start_date")
+  endDate        DateTime? @map("end_date")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         Plan         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  invoices     Invoice[]
+
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  subscriptionId String?   @map("subscription_id") @db.Uuid
+  asaasId        String?   @unique @map("asaas_id") @db.VarChar(120)
+  amount         Float
+  status         String    @db.VarChar(30)
+  dueDate        DateTime  @map("due_date")
+  paidAt         DateTime? @map("paid_at")
+  pdfUrl         String?   @map("pdf_url")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@map("invoices")
+}
+
+// ============================================
 // 1. Condominium
 // ============================================
 model Condominium {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @db.VarChar(180)
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String   @db.VarChar(180)
   document  String?  @db.VarChar(30)
   address   String?  @db.VarChar(300)
   phone     String?  @db.VarChar(30)
@@ -27,19 +117,22 @@ model Condominium {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  blocks            Block[]
-  units             Unit[]
-  residents         Resident[]
-  internalUsers     InternalUser[]
-  conversations     Conversation[]
-  occurrences       Occurrence[]
+  blocks               Block[]
+  units                Unit[]
+  residents            Resident[]
+  internalUsers        InternalUser[]
+  conversations        Conversation[]
+  occurrences          Occurrence[]
   occurrenceCategories OccurrenceCategory[]
-  alerts            Alert[]
-  escalationRules   EscalationRule[]
-  dispatchGroups    DispatchGroup[]
-  businessHours     BusinessHour[]
-  auditLogs         AuditLog[]
-  chatMemories      ChatMemory[]
+  alerts               Alert[]
+  escalationRules      EscalationRule[]
+  dispatchGroups       DispatchGroup[]
+  businessHours        BusinessHour[]
+  auditLogs            AuditLog[]
+  chatMemories         ChatMemory[]
+  payables             Payable[]
+
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("condominiums")
 }
@@ -48,11 +141,11 @@ model Condominium {
 // 2. Block
 // ============================================
 model Block {
-  id             String   @id @default(uuid()) @db.Uuid
-  condominiumId  String   @map("condominium_id") @db.Uuid
-  name           String   @db.VarChar(120)
-  code           String?  @db.VarChar(30)
-  createdAt      DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  condominiumId String   @map("condominium_id") @db.Uuid
+  name          String   @db.VarChar(120)
+  code          String?  @db.VarChar(30)
+  createdAt     DateTime @default(now()) @map("created_at")
 
   condominium Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
   units       Unit[]
@@ -64,13 +157,13 @@ model Block {
 // 3. Unit
 // ============================================
 model Unit {
-  id             String   @id @default(uuid()) @db.Uuid
-  condominiumId  String   @map("condominium_id") @db.Uuid
-  blockId        String   @map("block_id") @db.Uuid
-  number         String   @db.VarChar(20)
-  floor          String?  @db.VarChar(20)
-  status         String   @default("active") @db.VarChar(20)
-  createdAt      DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  condominiumId String   @map("condominium_id") @db.Uuid
+  blockId       String   @map("block_id") @db.Uuid
+  number        String   @db.VarChar(20)
+  floor         String?  @db.VarChar(20)
+  status        String   @default("active") @db.VarChar(20)
+  createdAt     DateTime @default(now()) @map("created_at")
 
   condominium Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
   block       Block       @relation(fields: [blockId], references: [id], onDelete: Cascade)
@@ -83,16 +176,16 @@ model Unit {
 // 4. Resident
 // ============================================
 model Resident {
-  id             String   @id @default(uuid()) @db.Uuid
-  condominiumId  String   @map("condominium_id") @db.Uuid
-  unitId         String?  @map("unit_id") @db.Uuid
-  fullName       String   @map("full_name") @db.VarChar(180)
-  phone          String?  @db.VarChar(30)
-  email          String?  @db.VarChar(180)
-  document       String?  @db.VarChar(30)
-  status         String   @default("active") @db.VarChar(20)
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  condominiumId String   @map("condominium_id") @db.Uuid
+  unitId        String?  @map("unit_id") @db.Uuid
+  fullName      String   @map("full_name") @db.VarChar(180)
+  phone         String?  @db.VarChar(30)
+  email         String?  @db.VarChar(180)
+  document      String?  @db.VarChar(30)
+  status        String   @default("active") @db.VarChar(20)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   condominium   Condominium    @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
   unit          Unit?          @relation(fields: [unitId], references: [id], onDelete: SetNull)
@@ -107,8 +200,9 @@ model Resident {
 // 5. CustomRole
 // ============================================
 model CustomRole {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique @db.VarChar(120)
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  name           String   @db.VarChar(120)
   description String?  @db.VarChar(300)
   color       String   @default("#3b82f6") @db.VarChar(20)
   permissions Json     @default("{}")
@@ -117,7 +211,9 @@ model CustomRole {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   users InternalUser[]
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  @@unique([organizationId, name])
   @@map("custom_roles")
 }
 
@@ -126,25 +222,27 @@ model CustomRole {
 // ============================================
 model InternalUser {
   id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
   condominiumId  String?  @map("condominium_id") @db.Uuid
-  customRoleId   String?  @map("custom_role_id") @db.Uuid
-  fullName       String   @map("full_name") @db.VarChar(180)
-  email          String   @unique @db.VarChar(180)
-  phone          String?  @db.VarChar(30)
-  role           String   @db.VarChar(40)
-  permissions    Json?    @default("{}")
-  passwordHash   String   @map("password_hash")
-  status         String   @default("active") @db.VarChar(20)
-  refreshToken   String?  @map("refresh_token")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  customRoleId  String?  @map("custom_role_id") @db.Uuid
+  fullName      String   @map("full_name") @db.VarChar(180)
+  email         String   @unique @db.VarChar(180)
+  phone         String?  @db.VarChar(30)
+  role          String   @db.VarChar(40)
+  permissions   Json?    @default("{}")
+  passwordHash  String   @map("password_hash")
+  status        String   @default("active") @db.VarChar(20)
+  refreshToken  String?  @map("refresh_token")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
-  condominium         Condominium?      @relation(fields: [condominiumId], references: [id], onDelete: SetNull)
-  customRole          CustomRole?       @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
-  assignedOccurrences Occurrence[]      @relation("AssignedUser")
-  assignedConversations Conversation[]  @relation("AssignedToUser")
-  alertRecipients     AlertRecipient[]
-  dispatchGroupMembers DispatchGroupMember[]
+  organization          Organization?         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  condominium           Condominium?          @relation(fields: [condominiumId], references: [id], onDelete: SetNull)
+  customRole            CustomRole?           @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  assignedOccurrences   Occurrence[]          @relation("AssignedUser")
+  assignedConversations Conversation[]        @relation("AssignedToUser")
+  alertRecipients       AlertRecipient[]
+  dispatchGroupMembers  DispatchGroupMember[]
 
   @@map("internal_users")
 }
@@ -153,19 +251,20 @@ model InternalUser {
 // 6. Conversation
 // ============================================
 model Conversation {
-  id                String   @id @default(uuid()) @db.Uuid
-  condominiumId     String   @map("condominium_id") @db.Uuid
-  residentId        String?  @map("resident_id") @db.Uuid
-  channel           String   @db.VarChar(30)
-  externalReference String?  @map("external_reference") @db.VarChar(180)
-  status            String   @default("open") @db.VarChar(30)
-  isAiActive        Boolean  @default(true) @map("is_ai_active")
-  assignedToId      String?  @map("assigned_to_id") @db.Uuid
-  startedAt         DateTime @default(now()) @map("started_at")
+  id                String    @id @default(uuid()) @db.Uuid
+  condominiumId     String    @map("condominium_id") @db.Uuid
+  residentId        String?   @map("resident_id") @db.Uuid
+  channel           String    @db.VarChar(30)
+  externalReference String?   @map("external_reference") @db.VarChar(180)
+  status            String    @default("open") @db.VarChar(30)
+  isAiActive        Boolean   @default(true) @map("is_ai_active")
+  assignedToId      String?   @map("assigned_to_id") @db.Uuid
+  startedAt         DateTime  @default(now()) @map("started_at")
   lastMessageAt     DateTime? @map("last_message_at")
+  unreadCount       Int       @default(0) @map("unread_count")
 
-  condominium Condominium  @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
-  resident    Resident?    @relation(fields: [residentId], references: [id], onDelete: SetNull)
+  condominium Condominium   @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  resident    Resident?     @relation(fields: [residentId], references: [id], onDelete: SetNull)
   assignedTo  InternalUser? @relation("AssignedToUser", fields: [assignedToId], references: [id], onDelete: SetNull)
   messages    Message[]
   occurrences Occurrence[]
@@ -177,16 +276,16 @@ model Conversation {
 // 7. Message
 // ============================================
 model Message {
-  id              String   @id @default(uuid()) @db.Uuid
-  conversationId  String   @map("conversation_id") @db.Uuid
-  direction       String   @db.VarChar(10) // inbound | outbound
-  senderName      String?  @map("sender_name") @db.VarChar(180)
-  senderPhone     String?  @map("sender_phone") @db.VarChar(30)
-  body            String?
-  mediaUrl        String?  @map("media_url")
-  externalId      String?  @unique @map("external_id") @db.VarChar(180)
-  rawPayload      Json?    @map("raw_payload")
-  sentAt          DateTime @default(now()) @map("sent_at")
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  direction      String   @db.VarChar(10) // inbound | outbound
+  senderName     String?  @map("sender_name") @db.VarChar(180)
+  senderPhone    String?  @map("sender_phone") @db.VarChar(30)
+  body           String?
+  mediaUrl       String?  @map("media_url")
+  externalId     String?  @unique @map("external_id") @db.VarChar(180)
+  rawPayload     Json?    @map("raw_payload")
+  sentAt         DateTime @default(now()) @map("sent_at")
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
@@ -204,7 +303,7 @@ model OccurrenceCategory {
   isEmergency     Boolean  @default(false) @map("is_emergency")
   createdAt       DateTime @default(now()) @map("created_at")
 
-  condominium Condominium?  @relation(fields: [condominiumId], references: [id], onDelete: SetNull)
+  condominium Condominium? @relation(fields: [condominiumId], references: [id], onDelete: SetNull)
   occurrences Occurrence[]
 
   @@map("occurrence_categories")
@@ -214,24 +313,24 @@ model OccurrenceCategory {
 // 9. Occurrence
 // ============================================
 model Occurrence {
-  id               String    @id @default(uuid()) @db.Uuid
-  condominiumId    String    @map("condominium_id") @db.Uuid
-  residentId       String?   @map("resident_id") @db.Uuid
-  conversationId   String?   @map("conversation_id") @db.Uuid
-  categoryId       String?   @map("category_id") @db.Uuid
-  title            String    @db.VarChar(180)
-  description      String?
-  status           String    @default("new") @db.VarChar(30)
-  priority         String    @default("medium") @db.VarChar(20)
-  assignedUserId   String?   @map("assigned_user_id") @db.Uuid
-  openedAt         DateTime  @default(now()) @map("opened_at")
-  closedAt         DateTime? @map("closed_at")
+  id             String    @id @default(uuid()) @db.Uuid
+  condominiumId  String    @map("condominium_id") @db.Uuid
+  residentId     String?   @map("resident_id") @db.Uuid
+  conversationId String?   @map("conversation_id") @db.Uuid
+  categoryId     String?   @map("category_id") @db.Uuid
+  title          String    @db.VarChar(180)
+  description    String?
+  status         String    @default("new") @db.VarChar(30)
+  priority       String    @default("medium") @db.VarChar(20)
+  assignedUserId String?   @map("assigned_user_id") @db.Uuid
+  openedAt       DateTime  @default(now()) @map("opened_at")
+  closedAt       DateTime? @map("closed_at")
 
-  condominium  Condominium       @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
-  resident     Resident?         @relation(fields: [residentId], references: [id], onDelete: SetNull)
-  conversation Conversation?     @relation(fields: [conversationId], references: [id], onDelete: SetNull)
-  category     OccurrenceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  assignedUser InternalUser?     @relation("AssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  condominium  Condominium          @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  resident     Resident?            @relation(fields: [residentId], references: [id], onDelete: SetNull)
+  conversation Conversation?        @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  category     OccurrenceCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assignedUser InternalUser?        @relation("AssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
   timeline     OccurrenceTimeline[]
   alerts       Alert[]
   attachments  Attachment[]
@@ -279,18 +378,18 @@ model Attachment {
 // 12. Alert
 // ============================================
 model Alert {
-  id             String   @id @default(uuid()) @db.Uuid
-  condominiumId  String   @map("condominium_id") @db.Uuid
-  occurrenceId   String   @map("occurrence_id") @db.Uuid
-  triggerType     String   @map("trigger_type") @db.VarChar(40)
-  urgencyLevel   String   @map("urgency_level") @db.VarChar(20)
-  status         String   @default("triggered") @db.VarChar(30)
-  triggeredAt    DateTime @default(now()) @map("triggered_at")
+  id             String    @id @default(uuid()) @db.Uuid
+  condominiumId  String    @map("condominium_id") @db.Uuid
+  occurrenceId   String    @map("occurrence_id") @db.Uuid
+  triggerType    String    @map("trigger_type") @db.VarChar(40)
+  urgencyLevel   String    @map("urgency_level") @db.VarChar(20)
+  status         String    @default("triggered") @db.VarChar(30)
+  triggeredAt    DateTime  @default(now()) @map("triggered_at")
   acknowledgedAt DateTime? @map("acknowledged_at")
   closedAt       DateTime? @map("closed_at")
 
-  condominium Condominium     @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
-  occurrence  Occurrence      @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  condominium Condominium      @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  occurrence  Occurrence       @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
   recipients  AlertRecipient[]
 
   @@map("alerts")
@@ -300,13 +399,13 @@ model Alert {
 // 13. AlertRecipient
 // ============================================
 model AlertRecipient {
-  id        String    @id @default(uuid()) @db.Uuid
-  alertId   String    @map("alert_id") @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  channel   String    @db.VarChar(30)
-  sentAt    DateTime? @map("sent_at")
-  readAt    DateTime? @map("read_at")
-  status    String    @default("pending") @db.VarChar(20)
+  id      String    @id @default(uuid()) @db.Uuid
+  alertId String    @map("alert_id") @db.Uuid
+  userId  String    @map("user_id") @db.Uuid
+  channel String    @db.VarChar(30)
+  sentAt  DateTime? @map("sent_at")
+  readAt  DateTime? @map("read_at")
+  status  String    @default("pending") @db.VarChar(20)
 
   alert Alert        @relation(fields: [alertId], references: [id], onDelete: Cascade)
   user  InternalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -330,7 +429,7 @@ model EscalationRule {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  condominium   Condominium   @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  condominium   Condominium    @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
   dispatchGroup DispatchGroup? @relation(fields: [dispatchGroupId], references: [id], onDelete: SetNull)
 
   @@map("escalation_rules")
@@ -340,14 +439,14 @@ model EscalationRule {
 // 15. DispatchGroup
 // ============================================
 model DispatchGroup {
-  id             String   @id @default(uuid()) @db.Uuid
-  condominiumId  String   @map("condominium_id") @db.Uuid
-  name           String   @db.VarChar(120)
-  description    String?
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  condominiumId String   @map("condominium_id") @db.Uuid
+  name          String   @db.VarChar(120)
+  description   String?
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
 
-  condominium     Condominium          @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  condominium     Condominium           @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
   members         DispatchGroupMember[]
   escalationRules EscalationRule[]
 
@@ -375,14 +474,14 @@ model DispatchGroupMember {
 // 17. BusinessHour
 // ============================================
 model BusinessHour {
-  id             String   @id @default(uuid()) @db.Uuid
-  condominiumId  String   @map("condominium_id") @db.Uuid
-  weekday        Int      // 0=Sunday, 6=Saturday
-  startTime      String   @map("start_time") @db.VarChar(5) // HH:mm
-  endTime        String   @map("end_time") @db.VarChar(5)   // HH:mm
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  condominiumId String   @map("condominium_id") @db.Uuid
+  weekday       Int // 0=Sunday, 6=Saturday
+  startTime     String   @map("start_time") @db.VarChar(5) // HH:mm
+  endTime       String   @map("end_time") @db.VarChar(5) // HH:mm
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   condominium Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
 
@@ -408,16 +507,16 @@ model ContactChannel {
 // 19. AuditLog
 // ============================================
 model AuditLog {
-  id             String   @id @default(uuid()) @db.Uuid
-  condominiumId  String?  @map("condominium_id") @db.Uuid
-  entityType     String   @map("entity_type") @db.VarChar(60)
-  entityId       String?  @map("entity_id") @db.Uuid
-  action         String   @db.VarChar(60)
-  actorType      String   @map("actor_type") @db.VarChar(30)
-  actorId        String?  @map("actor_id") @db.Uuid
-  metadata       Json?
-  ipAddress      String?  @map("ip_address") @db.VarChar(45)
-  createdAt      DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  condominiumId String?  @map("condominium_id") @db.Uuid
+  entityType    String   @map("entity_type") @db.VarChar(60)
+  entityId      String?  @map("entity_id") @db.Uuid
+  action        String   @db.VarChar(60)
+  actorType     String   @map("actor_type") @db.VarChar(30)
+  actorId       String?  @map("actor_id") @db.Uuid
+  metadata      Json?
+  ipAddress     String?  @map("ip_address") @db.VarChar(45)
+  createdAt     DateTime @default(now()) @map("created_at")
 
   condominium Condominium? @relation(fields: [condominiumId], references: [id], onDelete: SetNull)
 
@@ -446,4 +545,32 @@ model ChatMemory {
 
   @@unique([condominiumId, phone])
   @@map("chat_memories")
+}
+
+// ============================================
+// 21. Payable (Contas a Pagar)
+// ============================================
+model Payable {
+  id              String    @id @default(uuid()) @db.Uuid
+  condominiumId   String    @map("condominium_id") @db.Uuid
+  description     String    @db.VarChar(255)
+  amount          Float
+  dueDate         DateTime  @map("due_date")
+  status          String    @default("PENDING") @db.VarChar(30)
+  category        String    @db.VarChar(100)
+  barcode         String?   @db.VarChar(255)
+  documentUrl     String?   @map("document_url")
+  receiptUrl      String?   @map("receipt_url")
+  paidAt          DateTime? @map("paid_at")
+  interestAmount  Float?    @default(0) @map("interest_amount")
+  fineAmount      Float?    @default(0) @map("fine_amount")
+  discountAmount  Float?    @default(0) @map("discount_amount")
+  amountPaid      Float?    @map("amount_paid")
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  condominium Condominium @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+
+  @@map("payables")
 }

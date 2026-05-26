@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { InternalUsersService } from './internal-users.service';
@@ -76,5 +76,12 @@ export class InternalUsersController {
   @ApiOperation({ summary: 'Update user status' })
   updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto, @CurrentUser('sub') userId: string) {
     return this.service.updateStatus(id, dto.status, userId);
+  }
+
+  @Delete(':id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Delete internal user' })
+  remove(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return this.service.remove(id, userId);
   }
 }

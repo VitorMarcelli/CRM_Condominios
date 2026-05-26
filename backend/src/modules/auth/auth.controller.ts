@@ -48,4 +48,11 @@ export class AuthController {
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.password);
   }
+
+  @Post('support-request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send a support request to the admin via WhatsApp' })
+  supportRequest(@Body() dto: { name: string; unit: string; message: string }) {
+    return this.authService.supportRequest(dto);
+  }
 }

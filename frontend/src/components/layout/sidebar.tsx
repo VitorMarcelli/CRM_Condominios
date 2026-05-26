@@ -16,7 +16,8 @@ import {
   Users2,
   ShieldCheck,
   Briefcase,
-  Crown
+  Crown,
+  Wallet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -33,6 +34,7 @@ const navItems = [
   { name: 'Grupos', href: '/dashboard/dispatch-groups', icon: Users2, permKey: 'dispatch_groups' },
   { name: 'Regras', href: '/dashboard/escalation-rules', icon: Siren, permKey: 'escalation_rules' },
   { name: 'Auditoria', href: '/dashboard/audit-logs', icon: ShieldCheck, adminOnly: true, permKey: 'audit_logs' },
+  { name: 'Financeiro', href: '/dashboard/financial/payables', icon: Wallet, adminOnly: true, permKey: 'financial' },
 ];
 
 export function Sidebar() {

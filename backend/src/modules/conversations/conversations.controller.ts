@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ConversationsService } from './conversations.service';
 import { EvolutionApiProvider } from '../webhooks/providers/evolution-api.provider';
 import { PermissionsGuard } from '../../common/guards';
-import { CurrentUser, RequirePermission } from '../../common/decorators';
+import { CurrentUser, RequirePermission, Roles } from '../../common/decorators';
+import { Role } from '../../common/enums/role.enum';
 import { IsString, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -105,5 +106,32 @@ export class ConversationsController {
       await this.evolution.sendText(phone, `Atendimento devolvido para o Assistente de IA.`);
     }
     return updated;
+  }
+
+  @Post(':id/close')
+  @RequirePermission('conversations', 'respond')
+  @ApiOperation({ summary: 'Encerrar o atendimento' })
+  async closeConversation(@Param('id') id: string, @CurrentUser() user: any) {
+    const updated = await this.service.closeConversation(id, user.sub);
+    const convInfo = await this.service.findOne(id);
+    const phone = convInfo.externalReference || convInfo.resident?.phone;
+    
+    if (phone) {
+      await this.evolution.sendText(phone, `Atendimento encerrado por ${updated.operatorName}.`);
+    }
+    return updated;
+  }
+
+  @Post(':id/read')
+  @ApiOperation({ summary: 'Zerar contador de mensagens não lidas' })
+  async markAsRead(@Param('id') id: string) {
+    return this.service.markAsRead(id);
+  }
+
+  @Delete(':id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.SINDICO, Role.ATENDENTE)
+  @ApiOperation({ summary: 'Deletar conversa' })
+  async deleteConversation(@Param('id') id: string) {
+    return this.service.deleteConversation(id);
   }
 }

@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { EvolutionApiProvider } from '../webhooks/providers/evolution-api.provider';
+import { AlertsService } from '../alerts/alerts.service';
 
 interface CreateOccurrenceInput {
   condominiumId: string;
@@ -19,6 +21,8 @@ export class OccurrencesService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private evolution: EvolutionApiProvider,
+    private alerts: AlertsService,
   ) {}
 
   async create(data: CreateOccurrenceInput, actorId?: string) {
@@ -56,6 +60,20 @@ export class OccurrencesService {
         actorType: 'user',
         actorId,
       });
+    }
+
+    // Automatically trigger alert for high/critical manual occurrences
+    if ((data.priority === 'critical' || data.priority === 'high') && data.metadata?.origin !== 'whatsapp_ai') {
+      try {
+        await this.alerts.trigger({
+          condominiumId: data.condominiumId,
+          occurrenceId: occurrence.id,
+          triggerType: 'manual_creation',
+          urgencyLevel: data.priority,
+        }, actorId);
+      } catch (error) {
+        console.error('Failed to auto-trigger alert for manual occurrence:', error);
+      }
     }
 
     return occurrence;
@@ -139,6 +157,10 @@ export class OccurrencesService {
   async updateStatus(id: string, status: string, actorId: string, user?: any) {
     const occurrence = await this.findOne(id, user);
 
+    if (status === 'resolved' && !occurrence.assignedUserId) {
+      throw new BadRequestException('Não é possível resolver uma ocorrência sem um responsável atribuído.');
+    }
+
     const data: Record<string, unknown> = { status };
     if (status === 'closed' || status === 'resolved') {
       data.closedAt = new Date();
@@ -166,6 +188,20 @@ export class OccurrencesService {
       actorId,
       metadata: { oldStatus: occurrence.status, newStatus: status },
     });
+
+    if (status === 'resolved') {
+      try {
+        const metadata = occurrence?.timeline?.find((t: any) => t.action === 'CREATED')?.metadata as any;
+        const residentPhone = occurrence?.resident?.phone || metadata?.senderPhone;
+
+        if (residentPhone) {
+           const message = `✅ *OCORRÊNCIA RESOLVIDA*\n\nOlá! Informamos que a sua solicitação ("${occurrence.title}") foi resolvida com sucesso pela nossa equipe!\n\nAgradecemos o contato e estamos à disposição.`;
+           await this.evolution.sendText(residentPhone, message);
+        }
+      } catch (error) {
+        console.error('Failed to send resolution WhatsApp to resident:', error);
+      }
+    }
 
     return updated;
   }

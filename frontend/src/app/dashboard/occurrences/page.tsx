@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -14,11 +14,11 @@ import { Plus, Search, Filter, AlertTriangle, Clock, User, ArrowRight, Loader2, 
 import { toast } from 'sonner';
 import { format, differenceInHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 
 import { OccurrenceDetailsModal } from './components/occurrence-details-modal';
 
-const container = {
+const container: Variants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -26,15 +26,17 @@ const container = {
   }
 };
 
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 20, filter: 'blur(5px)' },
   show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { type: 'spring', stiffness: 300, damping: 24 } },
   exit: { opacity: 0, scale: 0.95, transition: { duration: 0.2 } }
-};
+} as Variants;
 
-export default function OccurrencesPage() {
+function OccurrencesContent() {
   const { user } = useAuthStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const autoOpenId = searchParams.get('occurrenceId');
   const [occurrences, setOccurrences] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -75,7 +77,7 @@ export default function OccurrencesPage() {
   useEffect(() => {
     fetchOccurrences();
     if (user?.condominiumId) {
-      setFormData(prev => ({ ...prev, condominiumId: user.condominiumId }));
+      setFormData(prev => ({ ...prev, condominiumId: user.condominiumId || '' }));
     }
   }, [user]);
 
@@ -99,6 +101,16 @@ export default function OccurrencesPage() {
         .catch(console.error);
     }
   }, [isAddOpen, formData.condominiumId, user, condominiums.length]);
+
+  useEffect(() => {
+    if (autoOpenId && !isDetailsOpen) {
+      setSelectedOccurrenceId(autoOpenId);
+      setIsDetailsOpen(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('occurrenceId');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [autoOpenId]);
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -479,12 +491,24 @@ export default function OccurrencesPage() {
       )}
 
       {/* DETALHES DA OCORRÊNCIA (MODAL) */}
+      {/* DETALHES DA OCORRÊNCIA (MODAL) */}
       <OccurrenceDetailsModal
         isOpen={isDetailsOpen}
-        onClose={() => setIsDetailsOpen(false)}
+        onClose={() => {
+          setIsDetailsOpen(false);
+          setTimeout(() => setSelectedOccurrenceId(null), 200);
+        }}
         occurrenceId={selectedOccurrenceId}
         onUpdated={fetchOccurrences}
       />
     </div>
+  );
+}
+
+export default function OccurrencesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">Carregando painel...</div>}>
+      <OccurrencesContent />
+    </Suspense>
   );
 }

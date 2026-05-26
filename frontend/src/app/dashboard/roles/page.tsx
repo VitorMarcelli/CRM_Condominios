@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Plus, Loader2, Lock, Pencil, Trash2, Users, Shield, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 
 const MODULES_MAP: Record<string, { label: string; actions: { key: string; label: string }[] }> = {
   dashboard: { label: '📊 Dashboard', actions: [{ key: 'view', label: 'Visualizar' }] },
@@ -69,7 +69,7 @@ const MODULES_MAP: Record<string, { label: string; actions: { key: string; label
   },
 };
 
-const ROLE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
+const ROLE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#14b8a6', '#ec4899', '#06b6d4', '#64748b'];
 
 const buildDefaultPerms = (): Record<string, Record<string, boolean>> => {
   const p: any = {};
@@ -89,11 +89,11 @@ const countPerms = (perms: any): { on: number; total: number } => {
   return { on, total };
 };
 
-const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
-const itemAnim = {
+const container: Variants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
+const itemAnim: Variants = {
   hidden: { opacity: 0, y: 20, filter: 'blur(5px)' },
   show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { type: 'spring', stiffness: 300, damping: 24 } },
-};
+} as Variants;
 
 export default function RolesPage() {
   const { user } = useAuthStore();

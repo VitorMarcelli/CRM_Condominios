@@ -5,9 +5,9 @@ import { dashboardService } from '@/services/dashboard';
 import { Users, AlertTriangle, MessageSquare, Bell, Clock, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
 
-const container = {
+const container: Variants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -15,10 +15,10 @@ const container = {
   }
 };
 
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 30, filter: 'blur(10px)' },
   show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { type: 'spring', stiffness: 250, damping: 25 } }
-};
+} as Variants;
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<any>(null);

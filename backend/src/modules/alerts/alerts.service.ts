@@ -40,33 +40,88 @@ export class AlertsService {
     });
 
     // Create alert recipients from dispatch group members and send WhatsApp notifications
-    const occurrence = await this.prisma.occurrence.findUnique({ where: { id: data.occurrenceId } });
+    const occurrence = await this.prisma.occurrence.findUnique({ 
+      where: { id: data.occurrenceId },
+      include: { 
+        condominium: true, 
+        resident: true,
+        timeline: { where: { action: 'CREATED' }, take: 1 }
+      }
+    });
     
-    for (const rule of rules) {
-      if (rule.dispatchGroup) {
-        for (const member of rule.dispatchGroup.members) {
-          const recipient = await this.prisma.alertRecipient.create({
-            data: {
-              alertId: alert.id,
-              userId: member.userId,
-              channel: 'whatsapp',
-              status: 'pending',
-            },
-          });
+    const occText = `${occurrence?.title || ''} ${occurrence?.description || ''}`.toLowerCase();
+    
+    // Evaluate rules
+    const matchedRules = rules.filter(rule => {
+      // 1. Check urgency match (if rule specifies an urgency, it must match or be equal. If 'any', it catches all)
+      if (rule.urgencyLevel && rule.urgencyLevel !== 'any' && rule.urgencyLevel !== data.urgencyLevel) {
+        return false;
+      }
 
-          // Send real WhatsApp notification via Evolution API if user has a phone number
-          if (member.user.phone) {
-            try {
-              const message = `🚨 *ALERTA ${data.urgencyLevel.toUpperCase()}*\n\nNova ocorrência requer sua atenção imediata!\n\n*ID:* ${alert.id.split('-')[0].toUpperCase()}\n*Descrição:* ${occurrence?.title || 'Não informada'}\n\nAcesse o CRM para reconhecer o alerta.`;
-              await this.evolution.sendText(member.user.phone, message);
-              await this.updateRecipientStatus(recipient.id, 'sent');
-            } catch (error) {
-              console.error(`Failed to send WhatsApp alert to ${member.user.phone}:`, error);
-              await this.updateRecipientStatus(recipient.id, 'failed');
-            }
+      // 2. Check keywords match
+      const keywords = (rule.triggerKeywords as string[]) || [];
+      if (keywords.length === 0) return true; // If no keywords, match everything with that urgency
+      
+      return keywords.some(kw => occText.includes(kw.toLowerCase()));
+    });
+
+    let recipientsToNotify: Array<{ userId: string; phone: string | null }> = [];
+
+    if (matchedRules.length > 0) {
+      for (const rule of matchedRules) {
+        if (rule.dispatchGroup) {
+          for (const member of rule.dispatchGroup.members) {
+             if (!recipientsToNotify.find(r => r.userId === member.userId)) {
+               recipientsToNotify.push({ userId: member.userId, phone: member.user.phone });
+             }
           }
         }
       }
+    } else {
+      // Fallback: If no rules matched, notify admins to guarantee delivery
+      const admins = await this.prisma.internalUser.findMany({
+        where: {
+          OR: [
+            { condominiumId: data.condominiumId, role: { in: ['ADMIN', 'SUPER_ADMIN'] } },
+            { role: 'SUPER_ADMIN', condominiumId: null },
+          ],
+          status: 'active',
+        },
+      });
+      recipientsToNotify = admins.map(admin => ({ userId: admin.id, phone: admin.phone }));
+    }
+
+    // Now create the message string
+    const condoName = occurrence?.condominium?.name || 'Condomínio';
+    const metadata = occurrence?.timeline?.[0]?.metadata as any;
+    const reporterName = occurrence?.resident?.fullName || metadata?.senderName || 'Não identificado';
+    const reporterPhone = occurrence?.resident?.phone || metadata?.senderPhone || 'Não informado';
+    
+    const urgencyLabel = data.urgencyLevel === 'critical' ? 'CRÍTICO' : 'ALTO';
+    const emoji = data.urgencyLevel === 'critical' ? '🚨' : '⚠️';
+
+    const message = `${emoji} *ALERTA ${urgencyLabel} — ${condoName}*\n\nUma ocorrência grave requer sua atenção imediata!\n\n*ID:* ${alert.id.split('-')[0].toUpperCase()}\n*Título:* ${occurrence?.title || 'Não informada'}\n*Descrição:* ${occurrence?.description || 'Sem descrição'}\n\n👤 *Reportado por:* ${reporterName}\n📱 *Contato:* ${reporterPhone}\n\nAcesse o CRM para reconhecer o alerta.`;
+    
+    // Send notifications
+    for (const recipientInfo of recipientsToNotify) {
+       const recipient = await this.prisma.alertRecipient.create({
+         data: {
+           alertId: alert.id,
+           userId: recipientInfo.userId,
+           channel: 'whatsapp',
+           status: 'pending',
+         },
+       });
+
+       if (recipientInfo.phone) {
+         try {
+           await this.evolution.sendText(recipientInfo.phone, message);
+           await this.updateRecipientStatus(recipient.id, 'sent');
+         } catch (error) {
+           console.error(`Failed to send WhatsApp alert to ${recipientInfo.phone}:`, error);
+           await this.updateRecipientStatus(recipient.id, 'failed');
+         }
+       }
     }
 
     await this.audit.log({
@@ -160,6 +215,38 @@ export class AlertsService {
       actorType: 'user',
       actorId,
     });
+
+    // Notify resident that the alert was acknowledged
+    try {
+      const actor = await this.prisma.internalUser.findUnique({
+        where: { id: actorId },
+        include: { customRole: true }
+      });
+
+      if (actor) {
+        let roleLabel = actor.role === 'SUPER_ADMIN' ? 'Administração do Sistema' : 
+                        actor.role === 'ADMIN' ? 'Síndico / Admin' : 
+                        actor.customRole?.name || 'Equipe do Condomínio';
+
+        const occurrence = await this.prisma.occurrence.findUnique({
+          where: { id: alert.occurrenceId },
+          include: { 
+            resident: true,
+            timeline: { where: { action: 'CREATED' }, take: 1 }
+          }
+        });
+
+        const metadata = occurrence?.timeline?.[0]?.metadata as any;
+        const residentPhone = occurrence?.resident?.phone || metadata?.senderPhone;
+
+        if (residentPhone) {
+           const message = `✅ *ALERTA RECONHECIDO*\n\nOlá! Passando para avisar que a ocorrência ("${occurrence?.title || 'Emergência'}") acabou de ser assumida por: *${roleLabel}* (${actor.fullName}).\n\nFique tranquilo(a), a situação já está em andamento!`;
+           await this.evolution.sendText(residentPhone, message);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to notify resident about alert acknowledgement:', error);
+    }
 
     return updated;
   }

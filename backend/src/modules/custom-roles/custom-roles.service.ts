@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { tenantContext } from '../../common/context/tenant-context';
 
 const DEFAULT_PERMISSIONS = {
   dashboard: { view: true },
@@ -32,11 +33,18 @@ export class CustomRolesService {
   ) {}
 
   async create(data: CreateRoleInput, actorId: string) {
-    const existing = await this.prisma.customRole.findUnique({ where: { name: data.name } });
+    const ctx = tenantContext.getStore();
+    const orgId = ctx?.organizationId;
+    if (!orgId) throw new BadRequestException('Organization context missing');
+
+    const existing = await this.prisma.customRole.findFirst({ 
+      where: { name: data.name, organizationId: orgId } 
+    });
     if (existing) throw new ConflictException('Já existe um cargo com esse nome.');
 
     const role = await this.prisma.customRole.create({
       data: {
+        organizationId: orgId,
         name: data.name,
         description: data.description,
         color: data.color || '#3b82f6',
@@ -58,15 +66,28 @@ export class CustomRolesService {
   }
 
   async findAll() {
+    const ctx = tenantContext.getStore();
     return this.prisma.customRole.findMany({
+      where: ctx?.organizationId ? {
+        OR: [
+          { organizationId: ctx.organizationId },
+          { isSystem: true }
+        ]
+      } : {},
       orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
       include: { _count: { select: { users: true } } },
     });
   }
 
   async findOne(id: string) {
-    const role = await this.prisma.customRole.findUnique({
-      where: { id },
+    const ctx = tenantContext.getStore();
+    const role = await this.prisma.customRole.findFirst({
+      where: { 
+        id,
+        ...(ctx?.organizationId ? {
+          OR: [{ organizationId: ctx.organizationId }, { isSystem: true }]
+        } : {})
+      },
       include: { _count: { select: { users: true } } },
     });
     if (!role) throw new NotFoundException('Cargo não encontrado.');
@@ -81,7 +102,10 @@ export class CustomRolesService {
     }
 
     if (data.name && data.name !== role.name) {
-      const dup = await this.prisma.customRole.findUnique({ where: { name: data.name } });
+      const orgId = tenantContext.getStore()?.organizationId;
+      const dup = await this.prisma.customRole.findFirst({ 
+        where: { name: data.name, organizationId: orgId } 
+      });
       if (dup) throw new ConflictException('Já existe um cargo com esse nome.');
     }
 

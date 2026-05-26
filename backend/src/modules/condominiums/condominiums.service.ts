@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateCondominiumDto } from './dto/create-condominium.dto';
 import { UpdateCondominiumDto } from './dto/update-condominium.dto';
+import { tenantContext } from '../../common/context/tenant-context';
 
 @Injectable()
 export class CondominiumsService {
@@ -12,7 +13,16 @@ export class CondominiumsService {
   ) {}
 
   async create(dto: CreateCondominiumDto, actorId: string) {
-    const condominium = await this.prisma.condominium.create({ data: dto });
+    const ctx = tenantContext.getStore();
+    const orgId = ctx?.organizationId;
+
+    if (!orgId) {
+      throw new BadRequestException('Organization context is missing');
+    }
+
+    const condominium = await this.prisma.condominium.create({ 
+      data: { ...dto, organizationId: orgId } 
+    });
 
     await this.audit.log({
       condominiumId: condominium.id,
@@ -28,7 +38,13 @@ export class CondominiumsService {
 
   async findAll(params: { page?: number; limit?: number; status?: string }) {
     const { page = 1, limit = 20, status } = params;
+    const ctx = tenantContext.getStore();
+    
     const where: Record<string, unknown> = {};
+    if (ctx?.organizationId) {
+      where.organizationId = ctx.organizationId;
+    }
+    
     if (status) where.status = status;
 
     const [data, total] = await Promise.all([
@@ -53,8 +69,15 @@ export class CondominiumsService {
   }
 
   async findOne(id: string) {
+    const ctx = tenantContext.getStore();
+    const where: Record<string, unknown> = { id };
+    
+    if (ctx?.organizationId) {
+      where.organizationId = ctx.organizationId;
+    }
+
     const condominium = await this.prisma.condominium.findUnique({
-      where: { id },
+      where: where as any,
       include: {
         blocks: true,
         _count: { select: { residents: true, units: true, occurrences: true } },

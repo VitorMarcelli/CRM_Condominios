@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
+import { PrismaService } from '../../../common/prisma/prisma.service';
+import { tenantContext } from '../../../common/context/tenant-context';
 
 export interface EvolutionSendResult {
   success: boolean;
@@ -14,7 +16,10 @@ export class EvolutionApiProvider {
   private readonly http: AxiosInstance;
   private readonly instance: string;
 
-  constructor(private config: ConfigService) {
+  constructor(
+    private config: ConfigService,
+    private prisma: PrismaService,
+  ) {
     const baseURL = this.config.get<string>('EVOLUTION_API_URL', 'http://localhost:8080');
     const apiKey = this.config.get<string>('EVOLUTION_API_KEY', '');
     this.instance = this.config.get<string>('EVOLUTION_INSTANCE', 'crm-condominios');
@@ -29,10 +34,24 @@ export class EvolutionApiProvider {
     });
   }
 
-  async sendText(to: string, body: string): Promise<EvolutionSendResult> {
+  private async resolveInstanceName(instanceName?: string): Promise<string> {
+    if (instanceName) return instanceName;
+    const ctx = tenantContext.getStore();
+    if (ctx?.organizationId) {
+      const orgSettings = await this.prisma.organizationSettings.findUnique({
+        where: { organizationId: ctx.organizationId },
+        select: { whatsappInstanceId: true },
+      });
+      if (orgSettings?.whatsappInstanceId) return orgSettings.whatsappInstanceId;
+    }
+    return this.instance;
+  }
+
+  async sendText(to: string, body: string, instanceName?: string): Promise<EvolutionSendResult> {
     try {
       const phone = this.normalizePhone(to);
-      const res = await this.http.post(`/message/sendText/${this.instance}`, {
+      const name = await this.resolveInstanceName(instanceName);
+      const res = await this.http.post(`/message/sendText/${name}`, {
         number: phone,
         text: body,
       });
@@ -47,10 +66,11 @@ export class EvolutionApiProvider {
     }
   }
 
-  async sendMedia(to: string, mediaUrl: string, caption?: string): Promise<EvolutionSendResult> {
+  async sendMedia(to: string, mediaUrl: string, caption?: string, instanceName?: string): Promise<EvolutionSendResult> {
     try {
       const phone = this.normalizePhone(to);
-      const res = await this.http.post(`/message/sendMedia/${this.instance}`, {
+      const name = await this.resolveInstanceName(instanceName);
+      const res = await this.http.post(`/message/sendMedia/${name}`, {
         number: phone,
         mediatype: 'image',
         media: mediaUrl,
@@ -80,6 +100,7 @@ export class EvolutionApiProvider {
     fromMe: boolean;
     mediaUrl?: string;
     messageType: string;
+    instanceName?: string;
   } | null {
     try {
       // Evolution API v2 format
@@ -120,6 +141,7 @@ export class EvolutionApiProvider {
           timestamp: new Date((data.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000),
           fromMe: false,
           messageType,
+          instanceName: payload?.instance || undefined, // Evolution usually sends the instance name
         };
       }
 
@@ -135,7 +157,7 @@ export class EvolutionApiProvider {
    */
   async createInstance(instanceName?: string): Promise<any> {
     try {
-      const name = instanceName || this.instance;
+      const name = await this.resolveInstanceName(instanceName);
       const res = await this.http.post('/instance/create', {
         instanceName: name,
         integration: 'WHATSAPP-BAILEYS',
@@ -154,7 +176,7 @@ export class EvolutionApiProvider {
    */
   async getQrCode(instanceName?: string): Promise<any> {
     try {
-      const name = instanceName || this.instance;
+      const name = await this.resolveInstanceName(instanceName);
       const res = await this.http.get(`/instance/connect/${name}`);
       return res.data;
     } catch (error: any) {
@@ -168,7 +190,7 @@ export class EvolutionApiProvider {
    */
   async setWebhook(webhookUrl: string, instanceName?: string): Promise<any> {
     try {
-      const name = instanceName || this.instance;
+      const name = await this.resolveInstanceName(instanceName);
       const res = await this.http.post(`/webhook/set/${name}`, {
         webhook: {
           enabled: true,
@@ -190,7 +212,7 @@ export class EvolutionApiProvider {
    */
   async getConnectionStatus(instanceName?: string): Promise<any> {
     try {
-      const name = instanceName || this.instance;
+      const name = await this.resolveInstanceName(instanceName);
       const res = await this.http.get(`/instance/connectionState/${name}`);
       return res.data;
     } catch (error: any) {

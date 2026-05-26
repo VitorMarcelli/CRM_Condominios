@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -20,7 +20,11 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { CustomRolesModule } from './modules/custom-roles/custom-roles.module';
 import { AiAgentModule } from './modules/ai-agent/ai-agent.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { PayablesModule } from './modules/payables/payables.module';
+import { BillingModule } from './modules/billing/billing.module';
+import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { AppController } from './app.controller';
+import { TenantMiddleware } from './common/middleware/tenant.middleware';
 
 @Module({
   imports: [
@@ -45,7 +49,16 @@ import { AppController } from './app.controller';
     AuditModule,
     CustomRolesModule,
     AiAgentModule,
+    PayablesModule,
+    BillingModule,
+    OnboardingModule,
   ],
   controllers: [AppController],
 })
-export class AppModule {}
+export class AppModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(TenantMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+  }
+}
